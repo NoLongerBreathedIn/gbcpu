@@ -1,0 +1,1838 @@
+* Note on Fs/Fr/Fm
+New F is Fs | Fr & (Fm & aluf | ~Fm & oldf)
+But! If Fm & 4 then Fs | MRH | Fr & (Fm & aluf | ~Fm & oldf)
+* Special flag
+g is always set to the ALU's carry from the previous cycle
+* Required assignments
+A <- A & I
+A <- A & MR
+A <- A & r8
+A <- A + I
+A <- A + I + fC
+A <- A + MR
+A <- A + MR + fC
+A <- A + r8
+A <- A + r8 + fC
+A <- A - I
+A <- A - I - fC
+A <- A - MR
+A <- A - MR - fC
+A <- A - r8
+A <- A - r8 - fC
+A <- A ^ I
+A <- A ^ MR
+A <- A ^ r8
+A <- A | I
+A <- A | MR
+A <- A | r8
+A <- A ± DAA(fN, fH, fC, A)
+A <- MR
+A <- RL(A, fC)
+A <- RLC(A)
+A <- RR(fC, A)
+A <- RRC(A)
+A <- ~A
+A/B/D/H <- MR
+F/C/E/L <- MR
+H <- H + H/B/D/S + fC
+H <- S + Ihs + fC
+H/B/D/S <- H/B/D/S + g
+H/B/D/S <- I
+H/B/D/S <- xFF + H/B/D/S + g
+HL <- HL + 1
+HL <- HL - 1
+IP <- HL
+IP <- j
+IP++
+J <- MR
+J <- pIhs + J + g
+L <- L + I
+L <- L + L/C/E/P
+L <- P
+L/C/E/P <- I
+L/C/E/P <- L/C/E/P + 1
+L/C/E/P <- xFF + L/C/E/P
+MA <- BC/DE
+MA <- HL
+MA <- MA + 1
+MA <- SP
+MAH <- I
+MAH <- xFF
+MAL <- C
+MAL <- I
+MW <- 0 + MR + 1
+MW <- A
+MW <- A/B/D/H
+MW <- BIT(u3, MR, 0)
+MW <- BIT(u3, MR, 1)
+MW <- F/C/E/L
+MW <- I
+MW <- J
+MW <- J + !~(Q|1)
+MW <- P
+MW <- Q
+MW <- RL(MR, fC)
+MW <- RLC(MR)
+MW <- RR(MR, fC)
+MW <- RRC(MR)
+MW <- S
+MW <- SL(MR)
+MW <- SRA(MR)
+MW <- SRL(MR)
+MW <- SWAP(MR)
+MW <- r8
+MW <- xFF + r8
+P <- I
+P <- L
+P <- P + I
+Q <- MR
+Q <- Q + I
+S <- H
+S <- I
+S <- S + Ihs + fC
+SP <- SP - 1
+SP/MA <- SP + 1
+_ <- A - I
+_ <- A - MR
+_ <- A - r8
+_ <- BIT(u3, MR, X)
+_ <- BIT(u3, r8, X)
+fC = !fC
+jH <- 0
+jH <- I
+jL <- I
+jL <- I & x38
+r8 <- 0 + r8 + 1
+r8 <- BIT(u3, r8, 0)
+r8 <- BIT(u3, r8, 1)
+r8 <- I
+r8 <- MR
+r8 <- RL(r8, fC)
+r8 <- RLC(r8)
+r8 <- RR(r8, fC)
+r8 <- RRC(r8)
+r8 <- SL(r8)
+r8 <- SRA(r8)
+r8 <- SRL(r8)
+r8 <- SWAP(r8)
+r8 <- r8'
+r8 <- xFF + r8
+* Shrunk down
+A <- ALU
+ALU <- A
+ALU <- B
+ALU <- C
+ALU <- D
+ALU <- DAA
+ALU <- E
+ALU <- F
+ALU <- H
+ALU <- I
+ALU <- J
+ALU <- L
+ALU <- MR
+ALU <- P
+ALU <- Q
+ALU <- S
+ALUc <- &ccx1
+ALUc <- &kkx0
+ALUc <- + 0 Ih kc0
+ALUc <- + 0 pIh kg0
+ALUc <- +0k !~(Q|1) 0
+ALUc <- +0k10
+ALUc <- +0kg0
+ALUc <- +10c0
+ALUc <- +1k00
+ALUc <- +1kg0
+ALUc <- +k 1n nx
+ALUc <- +kc10
+ALUc <- +kc1x
+ALUc <- +kcCx
+ALUc <- +kk00
+ALUc <- +kk0x
+ALUc <- +kkc0
+ALUc <- +kkcx
+ALUc <- ?0k10
+ALUc <- ?Ck10
+ALUc <- ?def101
+ALUc <- ?def111
+ALUc <- ?def1x1
+ALUc <- ?k000
+ALUc <- ?kC00
+ALUc <- ?kk00
+ALUc <- ?kk10
+ALUc <- ?x x0 0 1
+ALUc <- ?x x0 01
+ALUc <- ?x x0 1 1
+ALUc <- ?x x0 11
+ALUc <- ^0kxx
+ALUc <- ^c0xx
+ALUc <- ^kkxx
+ALUl <- H
+ALUl <- I
+ALUl <- L
+B <- ALU
+C <- ALU
+D <- ALU
+E <- ALU
+Fm <- 0xx1
+Fr <- 1001
+Fr <- MRH
+Fs <- 0000
+Fs <- MRH
+H <- ALU
+HL <- b16
+ID <- HL
+ID <- MA
+ID <- SP
+IDc <- 0
+IDc <- 1
+IP <- b16
+IP <- j
+J <- ALU
+L <- ALU
+MA <- b16
+MAH <- ALU
+MAL <- ALU
+MW <- ALU
+P <- ALU
+Q <- ALU
+S <- ALU
+SP <- b16
+b16 <- BC
+b16 <- DE
+b16 <- HL
+b16 <- ID
+b16 <- SP
+inc(IP)
+jH <- ALU
+jL <- ALU
+jL <- I&0x38
+res(jH)
+set(MAH)
+* Sources of each
+A: ALU
+ALU: A B C D E MR H L DAA I J P Q S
+ALUl: A I H L
+B: ALU
+C: ALU
+D: ALU
+E: ALU
+H: ALU
+HL: b16 ID
+ID: HL MA SP IP
+IP: j ID
+J: ALU
+L: ALU
+MA: b16 ID
+MAH: ALU
+MAL: ALU
+MW: ALU
+P: ALU
+Q: ALU
+S: ALU
+SP: b16 ID
+b16: BC DE HL SP
+jH: ALU
+jL: ALU I&0x38
+res(jH)
+set(MAH)
+
+* Register numbering
+| Reg | B | C | D | E | H | L | MW | A | J | Q | jH | jL | MAH | MAL | S | P |
+| Num | 0 | 1 | 2 | 3 | 4 | 5 |  6 | 7 | 8 | 9 | A  | B  | C   | D   | E | F |
+* Input bits to each
+A/B/C/D/E/H/L/S/P/MAH/MAL/J/Q/MW/jH/jL: 0 stay 1 set to ALU out
+HL/SP: 0x stay 10 set to ID out 11 set to b16
+j: 0 stay 1 set to I&0x38 (unless INT is on, then set to interrupt vector)
+MA: as HL/MA except 01 set MAH to FF and MAL to C
+IP: as HL/MA except 01 set to j
+ALU: 0:B 1:C 2:D 3:E 4:H 5:L 6:MR 7:A 8:J 9:Q A:I B:DAA C:F D:F E:S F:P
+ALUl: 00:A 01:I 10:H 11:L
+b16: 00:BC 01:DE 10:HL 11:SP
+ID: 00:IP 01:SP 10:HL 11:MA
+* Microcode (state-by-state, then I)
+Split by octal digits, mostly
+** Base 0
+*** 0ab
+**** 0a0
+| a      | 0      | 1      | 2      | 3      | 1cn     |
+|--------+--------+--------+--------+--------+---------|
+| Inst   | NOP    | STSP   | STOP   | JR     | JR cn   |
+| set 8s | (MW)   | MW     | (MW)   | (MW)   | (MW)    |
+| ALU    | x      | P      | x      | x      | x       |
+| ALUl   | x      | x      | x      | x      | x       |
+| ALUc   | x      | ^0kxx  | x      | x      | x       |
+| Fs     | 0000   | 0000   | 0000   | 0000   | 0000    |
+| Fr     | 1111   | 1111   | 1111   | 1111   | 1111    |
+| Fm     | 0000   | 0000   | 0000   | 0000   | 0000    |
+| HLSPMA | 0x0xxx | 0x0xxx | 0x0xxx | 0x0xxx | 0x0xxx  |
+| IPj    | 10x    | 10x    | 10x    | 10x    | 10x     |
+| write? | F      | F      | F      | F      | F       |
+| b16    | x      | x      | x      | x      | x       |
+| ID     | IP+    | IP+    | IP+    | IP+    | IP+     |
+| next   | Base 0 | stsp 0 | STOP   | jr 0   | jr/cn 0 |
+**** 0a1
+| a      | op0       | op1       |
+|--------+-----------+-----------|
+| Inst   | LD16      | ADD16     |
+| set 8s | (MAL)     | L         |
+| ALU    | x         | o&p o p 1 |
+| ALUl   | x         | L         |
+| ALUc   | x         | +kk0x     |
+| Fs     | 0000      | 0xxx      |
+| Fr     | 1111      | 1xxx      |
+| Fm     | 0000      | 00xx      |
+| HLSPMA | 0x0xxx    | 0x0xxx    |
+| IPj    | 10x       | 00x       |
+| write? | F         | F         |
+| b16    | x         | x         |
+| ID     | IP+       | x         |
+| next   | ld16/op 0 | Base 1    |
+**** 0a2
+| a      | opq               |
+|--------+-------------------|
+| Inst   | see below         |
+| set 8s | MW                |
+| ALU    | A                 |
+| ALUl   | x                 |
+| ALUc   | ^0kxx             |
+| Fs     | 0000              |
+| Fr     | 1111              |
+| Fm     | 0000              |
+| HLSPMA | o00x11            |
+| IPj    | 00x               |
+| write? | F                 |
+| b16    | o p&!o            |
+| ID     | HLp               |
+| next   | q? Base 1 : Write |
+
+instruction:
+|     | 00x   | 01x   | 10x | 11x |
+|-----+-------+-------+-----+-----|
+| xx0 | ST BC | ST DE | STI | STD |
+| xx1 | LD BC | LD DE | LDI | LDD |
+
+**** 0a3
+| a      | opq          |
+|--------+--------------|
+| Inst   | see below    |
+| set 8s | o&p o p 1    |
+| ALU    | o&p o p 1    |
+| ALUl   | x            |
+| ALUc   | + 0q 10 !q x |
+| Fs     | 0000         |
+| Fr     | 1111         |
+| Fm     | 0000         |
+| HLSPMA | 0x0xxx       |
+| IPj    | 00x          |
+| write? | F            |
+| b16    | x            |
+| ID     | x            |
+| next   | Base 1       |
+
+Instruction: q? DEC : INC
+Target: op -> BC/DE/HL/SP
+**** 00opq10t
+| Inst   | see below     |
+| set 8s | 0opq          |
+| ALU    | 0opq          |
+| ALUl   | x             |
+| ALUc   | + 0t 10 !t x  |
+| Fs     | 0t00          |
+| Fr     | 1011          |
+| Fm     | 1010          |
+| HLSPMA | 0x0x11        |
+| IPj    | !(o&p&!q) 0 x |
+| write? | F             |
+| b16    | HL            |
+| ID     | IP+           |
+| next   | Base o&p&!q   |
+
+Instruction: t? DEC : INC
+Target: opq -> B C D E H L (HL) A
+**** 0a6
+| a      | opq            |
+|--------+----------------|
+| Inst   | LD r(0opq), d8 |
+| set 8s | (MW)           |
+| ALU    | x              |
+| ALUl   | x              |
+| ALUc   | x              |
+| Fs     | 0000           |
+| Fr     | 1111           |
+| Fm     | 0000           |
+| HLSPMA | 0x0xxx         |
+| IPj    | 10x            |
+| write  | F              |
+| b16    | x              |
+| ID     | IP+            |
+| next   | ld8/opq 0      |
+**** 0a7
+| a      | 0pq       | 100          | 101    | 11q         |
+|--------+-----------+--------------+--------+-------------|
+| Inst   | RA        | DAA          | CPL    | S/CCF       |
+| set 8s | A         | A            | A      | A           |
+| ALU    | A         | DAA          | x      | x           |
+| ALUl   | x         | A            | A      | A           |
+| ALUc   | see below | +k 1 fN fN x | ^c0xx  | ^k0xx       |
+| Fs     | 0000      | 0000         | 0110   | 000 !(fC&q) |
+| Fr     | 0001      | 1101         | 1xx1   | 1000        |
+| Fm     | x0x1      | 10x1         | 00x0   | 00xx        |
+| HLSPMA | 0x0xxx    | 0x0xxx       | 0x0xxx | 0x0xxx      |
+| IPj    | 10x       | 10x          | 10x    | 10x         |
+| write  | F         | F            | F      | F           |
+| b16    | x         | x            | x      | x           |
+| ID     | IP+       | IP+          | IP+    | IP+         |
+| next   | Base 0    | Base 0       | Base 0 | Base 0      |
+
+ALUc for 000pq111 is
+? !(p&q) fC&p&q !pVq fC&p&!q q 0
+*** 1ab
+| ab     | opqrst                                     |
+|--------+--------------------------------------------|
+| Inst   | see below                                  |
+| set 8s | 0opq                                       |
+| ALU    | 0rst                                       |
+| ALUl   | x                                          |
+| ALUc   | ^0kxx                                      |
+| Fs     | 0000                                       |
+| Fr     | 1111                                       |
+| Fm     | 0000                                       |
+| HLSPMA | 0x0x11                                     |
+| IPj    | o&p&!q^r&s&!t 0 x                          |
+| write  | F                                          |
+| b16    | HL                                         |
+| ID     | IP+                                        |
+| next   | o&p&!q? r&s&!t? HALT : Write : Base r&s&!t |
+
+Instruction: LD unless 0166, then HALT
+*** 2ab
+**** 100pqrst
+| Inst   | ADD/ADC/SUB/SBC  |
+| set 8s | 0 1 1 !rV!sVt    |
+| ALU    | 0rst             |
+| ALUl   | A                |
+| ALUc   | +k 1p p^(fC&q) x |
+| Fs     | 0q00             |
+| Fr     | 1011             |
+| Fm     | 101 !rV!sV       |
+| HLSPMA | 0x0x11           |
+| IPj    | !rV!sVt 0 x      |
+| write  | F                |
+| b16    | HL               |
+| ID     | IP+              |
+| next   | Base r&s&!t      |
+**** 2ab a > 3
+| ab     | 1p0rst         | 101rst         | 111rst      |
+|--------+----------------+----------------+-------------|
+| Inst   | AND/OR         | XOR            | CP          |
+| set 8s | 0 1 1 !rV!sV!t | 0 1 1 !rV!sV!t | 0110        |
+| ALU    | 0rst           | 0rst           | 0rst        |
+| ALUl   | A              | A              | A           |
+| ALUc   | & 1p 1p x p    | ^kkxx          | +kc1x       |
+| Fs     | 0 0 !p 0       | 0000           | 0100        |
+| Fr     | 1000           | 1000           | 1x11        |
+| Fm     | 10xx           | 10xx           | 1011        |
+| HLSPMA | 0x0x11         | 0x0x11         | 0x0x11      |
+| IPj    | !rV!sVt 0 x    | !rV!sVt 0 x    | !rV!sVt 0 x |
+| write  | F              | F              | F           |
+| b16    | HL             | HL             | HL          |
+| ID     | IP+            | IP+            | IP+         |
+| next   | Base r&s&!t    | Base r&s&!t    | Base r&s&!t |
+*** 3ab
+**** 3a0
+| a      | 0cn    | 1pq              |
+|--------+--------+------------------|
+| Inst   | RET cn | LDH/ADD SP/LD HL |
+| set 8s | (MW)   | MW               |
+| ALU    | x      | A                |
+| ALUl   | x      | x                |
+| ALUc   | x      | ^0kxx            |
+| Fs     | 0000   | 0000             |
+| Fr     | 1111   | 1111             |
+| Fm     | 0000   | 0000             |
+| HLSPMA | 0xz010 | 0x0x01           |
+| IPj    | 00x    | 10x              |
+| write  | F      | F                |
+| b16    | x      | x                |
+| ID     | SP+    | IP+              |
+| next   | Base 1 | ldw/pq 0         |
+
+z is !n^(c?fC:fZ)
+**** 3a1
+| a      | op0    | 0p1    | 101    | 111       |
+|--------+--------+--------+--------+-----------|
+| Inst   | POP    | RET(I) | JPHL   | LD SP, HL |
+| set 8s | (MW)   | (MW)   | (MW)   | (MW)      |
+| ALU    | x      | x      | x      | x         |
+| ALUl   | x      | x      | x      | x         |
+| ALUc   | x      | x      | x      | x         |
+| Fs     | 0000   | 0000   | 0000   | 0000      |
+| Fr     | 1111   | 1111   | 1111   | 1111      |
+| Fm     | 0000   | 0000   | 0000   | 0000      |
+| HLSPMA | 0x1010 | 0x1010 | 0x0xxx | 0x11xx    |
+| IPj    | 00x    | 00x    | 11x    | 10x       |
+| write  | F      | F      | F      | F         |
+| b16    | x      | x      | HL     | HL        |
+| ID     | SP+    | SP+    | x      | IP+       |
+| next   | Base 1 | Base 1 | Base 0 | nop       |
+**** 3a2
+| a      | 0cn     | 1p0               | 1p1       |
+|--------+---------+-------------------+-----------|
+| Inst   | JP cn   | LDH C             | LD n16    |
+| set 8s | (MW)    | MW                | MW        |
+| ALU    | x       | A                 | A         |
+| ALUl   | x       | x                 | x         |
+| ALUc   | x       | ^0kxx             | ^0kxx     |
+| Fs     | 0000    | 0000              | 0000      |
+| Fr     | 1111    | 1111              | 1111      |
+| Fm     | 0000    | 0000              | 0000      |
+| HLSPMA | 0x0xxx  | 0x0x01            | 0x0xxx    |
+| IPj    | 10x     | 00x               | 10x       |
+| write  | F       | F                 | F         |
+| b16    | x       | x                 | x         |
+| ID     | IP+     | x                 | IP+       |
+| next   | jp/cn 0 | p? Write : Base 1 | ldn16/p 0 |
+**** 3a3
+| a      | 0x0    | 0x1    | 1x0          | 1x1           |
+|--------+--------+--------+--------------+---------------|
+| Inst   | JP     | CB     | DI           | EI            |
+| set 8s | (MW)   | (MW)   | (MW)         | (MW)          |
+| ALU    | x      | x      | x            | x             |
+| ALUl   | x      | x      | x            | x             |
+| ALUc   | x      | x      | x            | x             |
+| Fs     | 0000   | 0000   | 0000         | 0000          |
+| Fr     | 1111   | 1111   | 1111         | 1111          |
+| Fm     | 0000   | 0000   | 0000         | 0000          |
+| HLSPMA | 0x0xxx | 0x0xxx | 0x0xxx       | 0x0xxx        |
+| IPj    | 10x    | 10x    | 10x          | 10x           |
+| write  | F      | F      | F (clear IE) | F (set preIE) |
+| b16    | x      | x      | x            | x             |
+| ID     | IP+    | IP+    | IP+          | IP+           |
+| next   | jp 0   | CB 0   | Base 0       | Base 0        |
+**** 3a4
+| a      | xcn       |
+|--------+-----------|
+| Inst   | CALL cn   |
+| set 8s | (MW)      |
+| ALU    | x         |
+| ALUl   | x         |
+| ALUc   | x         |
+| Fs     | 0000      |
+| Fr     | 1111      |
+| Fm     | 0000      |
+| HLSPMA | 0x0xxx    |
+| IPj    | 10x       |
+| write  | F         |
+| b16    | x         |
+| ID     | IP+       |
+| next   | call/cn 0 |
+**** 3a5
+| a      | op0     | xx1    |
+|--------+---------+--------|
+| Inst   | PUSH    | CALL   |
+| set 8s | MW      | (MW)   |
+| ALU    | 0op o&p | x      |
+| ALUl   | x       | x      |
+| ALUc   | ^0kxx   | x      |
+| Fs     | 0000    | 0000   |
+| Fr     | 1111    | 1111   |
+| Fm     | 0000    | 0000   |
+| HLSPMA | 0x1011  | 0x0xxx |
+| IPj    | 00x     | 10x    |
+| write  | F       | F      |
+| b16    | SP      | x      |
+| ID     | SP-     | IP+    |
+| next   | Base 1  | call 0 |
+**** 3a6
+| set 8s | (MW)      |
+| ALU    | x         |
+| ALUl   | x         |
+| ALUc   | x         |
+| Fs     | 0000      |
+| Fr     | 1111      |
+| Fm     | 0000      |
+| HLSPMA | 0x0xxx    |
+| IPj    | 10x       |
+| write  | F         |
+| b16    | x         |
+| ID     | IP+       |
+| next   | mathi/a 0 |
+**** 3a7
+| Inst   | RST    |
+| set 8s | (MW)   |
+| ALU    | Q      |
+| ALUl   | x      |
+| ALUc   | +0k1x  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 001    |
+| write  | F      |
+| b16    | x      |
+| ID     | x      |
+| next   | Base 1 |
+*** If INT is on
+| set 8s | MW           |
+| ALU    | J            |
+| ALUl   | x            |
+| ALUc   | ^0kxx        |
+| Fs     | 0000         |
+| Fr     | 1111         |
+| Fm     | 0000         |
+| HLSPMA | 0x1011       |
+| IPj    | 001          |
+| write  | F (clear IE) |
+| b16    | SP           |
+| ID     | SP-          |
+| next   | Int 0        |
+** Base 1
+*** 00op1001 (ADD HL, r16)
+| set 8s | H         |
+| ALU    | o&p o p 0 |
+| ALUl   | H         |
+| ALUc   | +kkgx     |
+| Fs     | 0000      |
+| Fr     | 1011      |
+| Fm     | 0011      |
+| HLSPMA | 0x0xxx    |
+| IPj    | 10x       |
+| write  | F         |
+| b16    | x         |
+| ID     | IP+       |
+| next   | Base 0    |
+*** 00xx1010 (LD A, [BC/DE/HL±])
+| set 8s | A      |
+| ALU    | MR     |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 10x    |
+| write  | F      |
+| b16    | x      |
+| ID     | IP+    |
+| next   | Base 0 |
+*** 00opq011 (INC/DEC BC/DE/HL/SP)
+| set 8s | o&p o p 0   |
+| ALU    | o&p o p 0   |
+| ALUl   | x           |
+| ALUc   | + 0q 10 g x |
+| Fs     | 0000        |
+| Fr     | 1111        |
+| Fm     | 0000        |
+| HLSPMA | 0x0xxx      |
+| IPj    | 10x         |
+| write? | F           |
+| b16    | x           |
+| ID     | IP+         |
+| next   | Base 0      |
+*** 0011010t (INC/DEC [HL])
+| set 8s | MW           |
+| ALU    | MR           |
+| ALUl   | x            |
+| ALUc   | + 0t 10 !t x |
+| Fs     | 0t00         |
+| Fr     | 1011         |
+| Fm     | 1010         |
+| HLSPMA | 0x0x11       |
+| IPj    | 00x          |
+| write  | F            |
+| b16    | HL           |
+| ID     | x            |
+| next   | Write        |
+*** 01opq110 (LD r8, [HL])
+| set 8s | 0opq   |
+| ALU    | MR     |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 10x    |
+| write  | F      |
+| b16    | x      |
+| ID     | IP+    |
+| next   | Base 0 |
+*** 100pq110 (ADD/ADC/SUB/SBC [HL])
+| set 8s | A                |
+| ALU    | MR               |
+| ALUl   | A                |
+| ALUc   | +k 1p p^(fC&q) x |
+| Fs     | 0q00             |
+| Fr     | 1011             |
+| Fm     | 1011             |
+| HLSPMA | 0x0xxx           |
+| IPj    | 10x              |
+| write  | F                |
+| b16    | x                |
+| ID     | IP+              |
+| next   | Base 0           |
+*** 101pq110 (AND/XOR/OR/CP [HL])
+| set 8s | p&q? (MW) : A           |
+| ALU    | MR                      |
+| ALUl   | A                       |
+| ALUc   | pV!q p&q 1 p&!q 1 p 1 p |
+| Fs     | 0 p&q !(pVq) 0          |
+| Fr     | 10 p&q p&q              |
+| Fm     | 1011                    |
+| HLSPMA | 0x0xxx                  |
+| IPj    | 10x                     |
+| write  | F                       |
+| b16    | x                       |
+| ID     | IP+                     |
+| next   | Base 0                  |
+*** 110cn000 (RET cn)
+| set 8s | (MW)       |
+| ALU    | x          |
+| ALUl   | x          |
+| ALUc   | x          |
+| Fs     | 0000       |
+| Fr     | 1111       |
+| Fm     | 0000       |
+| HLSPMA | 0x0x00     |
+| IPj    | z0x        |
+| write  | F          |
+| b16    | x          |
+| ID     | IP+        |
+| next   | Base z?0:3 |
+z is n^(c?fC:fZ)
+*** 3a1 (POP BC/DE/HL/AF / RET(I))
+| a      | op0    | 0p1     |
+|--------+--------+---------|
+| set 8s | 0op1   | Q       |
+| ALU    | MR     | MR      |
+| ALUl   | x      | x       |
+| ALUc   | ^0kxx  | ^0kxx   |
+| Fs     | 0000   | 0000    |
+| Fr     | zzzz   | 1111    |
+| Fm     | 0y00   | 0000    |
+| HLSPMA | 0x1010 | 0x0xxx  |
+| IPj    | 00x    | 00x     |
+| write  | F      | F       |
+| b16    | x      | x       |
+| ID     | SP+    | x       |
+| next   | Base 3 | ret/p 0 |
+y is o&p; z is !(o&p)
+*** 11100010 (LDH A,[C])
+| set 8s | A      |
+| ALU    | MR     |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 10x    |
+| write  | F      |
+| b16    | x      |
+| ID     | IP+    |
+| next   | Base 0 |
+*** 11xx0101 (PUSH BC/DE/HL/AF)
+| set 8s | (MW)   |
+| ALU    | x      |
+| ALUl   | x      |
+| ALUc   | x      |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 00x    |
+| write  | T      |
+| b16    | x      |
+| ID     | x      |
+| next   | Base 3 |
+*** 11xxx111 (RST v)
+| set 8s | MW     |
+| ALU    | J      |
+| ALUl   | x      |
+| ALUc   | +0kgx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x1011 |
+| IPj    | 000    |
+| write  | F      |
+| b16    | SP     |
+| ID     | SP-    |
+| next   | Base 3 |
+** Base 3
+*** 110cn000 (RET cn)
+| set 8s | Q       |
+| ALU    | MR      |
+| ALUl   | x       |
+| ALUc   | ^0kxx   |
+| Fs     | 0000    |
+| Fr     | 1111    |
+| Fm     | 0000    |
+| HLSPMA | 0x0xxx  |
+| IPj    | 00x     |
+| write  | F       |
+| b16    | x       |
+| ID     | x       |
+| next   | ret/0 0 |
+*** 11op0001 (POP BC/DE/HL/AF)
+| set 8s | 0 o p o&p |
+| ALU    | MR        |
+| ALUl   | x         |
+| ALUc   | ^0kxx     |
+| Fs     | 0000      |
+| Fr     | 1111      |
+| Fm     | 0000      |
+| HLSPMA | 0x0xxx    |
+| IPj    | 10x       |
+| write  | F         |
+| b16    | x         |
+| ID     | IP+       |
+| next   | Base 0    |
+*** 11op0101 (PUSH BC/DE/HL/AF)
+| set 8s | MW             |
+| ALU    | o&p o !o&p 1   |
+| ALUl   | x              |
+| ALUc   | ^0kxx          |
+| Fs     | 0000           |
+| Fr     | 1111           |
+| Fm     | 0000           |
+| HLSPMA | 0x1011         |
+| IPj    | 00x            |
+| write  | F              |
+| b16    | SP             |
+| ID     | SP-            |
+| next   | Write          |
+*** 3a7 (RST v)
+| set 8s | MW     |
+| ALU    | Q      |
+| ALUl   | x      |
+| ALUc   | +0k1x  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x1011 |
+| IPj    | 000    |
+| write  | T      |
+| b16    | SP     |
+| ID     | SP-    |
+| next   | call 4 |
+** stsp 0
+| set 8s | MAL    |
+| ALU    | I      |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 10x    |
+| write  | F      |
+| b16    | x      |
+| ID     | IP+    |
+| next   | stsp 1 |
+** stsp 1
+| set 8s | MAH    |
+| ALU    | I      |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0x00 |
+| IPj    | 00x    |
+| write  | F      |
+| b16    | x      |
+| ID     | x      |
+| next   | stsp 2 |
+** stsp 2
+| set 8s | MW     |
+| ALU    | S      |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0x10 |
+| IPj    | 00x    |
+| write  | T      |
+| b16    | x      |
+| ID     | MA+    |
+| next   | stsp 3 |
+** stsp 3
+| set 8s | -      |
+| ALU    | x      |
+| ALUl   | x      |
+| ALUc   | x      |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 10x    |
+| write  | T      |
+| b16    | x      |
+| ID     | IP+    |
+| next   | Base 0 |
+** jr 0
+| set 8s | jL     |
+| ALU    | Q      |
+| ALUl   | I      |
+| ALUc   | +kk0x  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 00x    |
+| write  | F      |
+| b16    | x      |
+| ID     | x      |
+| next   | jr 1   |
+** jr 1
+| set 8s | J            |
+| ALU    | J            |
+| ALUl   | x            |
+| ALUc   | + 0 Ih k g x |
+| Fs     | 0000         |
+| Fr     | 1111         |
+| Fm     | 0000         |
+| HLSPMA | 0x0xxx       |
+| IPj    | 01x          |
+| write  | F            |
+| b16    | x            |
+| ID     | x            |
+| next   | Base 0       |
+** jr/cn 0
+| set 8s | jL               |
+| ALU    | Q                |
+| ALUl   | I                |
+| ALUc   | +kk0x            |
+| Fs     | 0000             |
+| Fr     | 1111             |
+| Fm     | 0000             |
+| HLSPMA | 0x0xxx           |
+| IPj    | y0x              |
+| write  | F                |
+| b16    | x                |
+| ID     | IP+              |
+| next   | y? Base 0 : jr 1 |
+y is n^(c?fC:fZ)
+** ld16/pq 0
+| set 8s | p&q p q 1 |
+| ALU    | I         |
+| ALUl   | x         |
+| ALUc   | ^0kxx     |
+| Fs     | 0000      |
+| Fr     | 1111      |
+| Fm     | 0000      |
+| HLSPMA | 0x0xxx    |
+| IPj    | 10x       |
+| write  | F         |
+| b16    | x         |
+| ID     | IP+       |
+| next   | ld16/pq 1 |
+** ld16/pq 1
+| set 8s | p&q p q 0 |
+| ALU    | I         |
+| ALUl   | x         |
+| ALUc   | ^0kxx     |
+| Fs     | 0000      |
+| Fr     | 1111      |
+| Fm     | 0000      |
+| HLSPMA | 0x0xxx    |
+| IPj    | 10x       |
+| write  | F         |
+| b16    | x         |
+| ID     | IP+       |
+| next   | Base 0    |
+** ld8/opq 0
+| set 8s | 0opq                   |
+| ALU    | I                      |
+| ALUl   | x                      |
+| ALUc   | ^0kxx                  |
+| Fs     | 0000                   |
+| Fr     | 1111                   |
+| Fm     | 0000                   |
+| HLSPMA | 0x0x11                 |
+| IPj    | !oV!pVq 0 x            |
+| write  | F                      |
+| b16    | HL                     |
+| ID     | IP+                    |
+| next   | o&p&!q? Write : Base 0 |
+** ldw/pq 0
+| q      | 0                   | 1         |
+|--------+---------------------+-----------|
+| set 8s | MAL                 | !p 1 !p 1 |
+| ALU    | x                   | P         |
+| ALUl   | I                   | I         |
+| ALUc   | ^k0xx               | +kk0x     |
+| Fs     | 0000                | 0000      |
+| Fr     | 1111                | 0011      |
+| Fm     | 0000                | x011      |
+| HLSPMA | 0x0x00              | 0x0xxx    |
+| IPj    | 00x                 | 00x       |
+| write  | F                   | F         |
+| b16    | x                   | x         |
+| ID     | x                   | x         |
+| next   | ldw/pq 1            | ldw/pq 1  |
+** ldw/pq 1
+| q      | 0      | 1               |
+|--------+--------+-----------------|
+| set 8s | 011p   | !p 1 !p 0       |
+| ALU    | MR     | S               |
+| ALUl   | x      | x               |
+| ALUc   | ^0kxx  | + 0 Ih k fC x   |
+| Fs     | 0000   | 0000            |
+| Fr     | 1111   | 1111            |
+| Fm     | 0000   | 0000            |
+| HLSPMA | 0x0xxx | 0x0xxx          |
+| IPj    | 10x    | 10x             |
+| write  | !p     | F               |
+| b16    | x      | x               |
+| ID     | IP+    | IP+             |
+| next   | Base 0 | p? Base 0 : nop |
+** jp 0
+| set 8s | jL     |
+| ALU    | I      |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 10x    |
+| write  | F      |
+| b16    | x      |
+| ID     | IP+    |
+| next   | jp 1   |
+** jp 1
+| set 8s | jH     |
+| ALU    | I      |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | xx0    |
+| write  | F      |
+| b16    | x      |
+| ID     | x      |
+| next   | jp 2   |
+** jp 2
+| set 8s | -      |
+| ALU    | x      |
+| ALUl   | x      |
+| ALUc   | x      |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 01x    |
+| write  | F      |
+| b16    | x      |
+| ID     | x      |
+| next   | Base 0 |
+** jp/cn 0
+| set 8s | jL      |
+| ALU    | I       |
+| ALUl   | x       |
+| ALUc   | ^0kxx   |
+| Fs     | 0000    |
+| Fr     | 1111    |
+| Fm     | 0000    |
+| HLSPMA | 0x0xxx  |
+| IPj    | 10x     |
+| write  | F       |
+| b16    | x       |
+| ID     | IP+     |
+| next   | jp/cn 1 |
+** jp/cn 1
+| set 8s | jH               |
+| ALU    | I                |
+| ALUl   | x                |
+| ALUc   | ^0kxx            |
+| Fs     | 0000             |
+| Fr     | 1111             |
+| Fm     | 0000             |
+| HLSPMA | 0x0xxx           |
+| IPj    | 100              |
+| write  | F                |
+| b16    | x                |
+| ID     | IP+              |
+| next   | z? Base 0 : jp 2 |
+z is n^(c?fC:fZ)
+** ldn16/p 0
+| set 8s | MAL       |
+| ALU    | I         |
+| ALUl   | x         |
+| ALUc   | ^0kxx     |
+| Fs     | 0000      |
+| Fr     | 1111      |
+| Fm     | 0000      |
+| HLSPMA | 0x0xxx    |
+| IPj    | 10x       |
+| write  | F         |
+| b16    | x         |
+| ID     | IP+       |
+| next   | ldn16/p 1 |
+** ldn16/p 1
+| set 8s | MAH       |
+| ALU    | I         |
+| ALUl   | x         |
+| ALUc   | ^0kxx     |
+| Fs     | 0000      |
+| Fr     | 1111      |
+| Fm     | 0000      |
+| HLSPMA | 0x0x00    |
+| IPj    | 00x       |
+| write  | F         |
+| b16    | x         |
+| ID     | x         |
+| next   | ldn16/p 2 |
+** ldn16/p 2
+| set 8s | 011p   |
+| ALU    | MR     |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 10x    |
+| write  | !p     |
+| b16    | x      |
+| ID     | IP+    |
+| next   | Base 0 |
+** call 0
+| set 8s | jL     |
+| ALU    | I      |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 10x    |
+| write  | F      |
+| b16    | x      |
+| ID     | IP+    |
+| next   | call 1 |
+** call 1
+| set 8s | jH     |
+| ALU    | I      |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 100    |
+| write  | F      |
+| b16    | x      |
+| ID     | IP+    |
+| next   | call 2 |
+** call 2
+| set 8s | MW     |
+| ALU    | J      |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x1011 |
+| IPj    | 000    |
+| write  | F      |
+| b16    | SP     |
+| ID     | SP-    |
+| next   | call 3 |
+** call 3
+| set 8s | MW     |
+| ALU    | Q      |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x1011 |
+| IPj    | 000    |
+| write  | T      |
+| b16    | SP     |
+| ID     | SP-    |
+| next   | call 4 |
+** call 4
+| set 8s | -      |
+| ALU    | x      |
+| ALUl   | x      |
+| ALUc   | x      |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 01x    |
+| write  | T      |
+| b16    | x      |
+| ID     | x      |
+| next   | Base 0 |
+** call/cn 0
+| set 8s | jL        |
+| ALU    | I         |
+| ALUl   | x         |
+| ALUc   | ^0kxx     |
+| Fs     | 0000      |
+| Fr     | 1111      |
+| Fm     | 0000      |
+| HLSPMA | 0x0xxx    |
+| IPj    | 10x       |
+| write  | F         |
+| b16    | x         |
+| ID     | IP+       |
+| next   | call/cn 1 |
+** call/cn 1
+| set 8s | jH                           |
+| ALU    | I                            |
+| ALUl   | x                            |
+| ALUc   | ^0kxx                        |
+| Fs     | 0000                         |
+| Fr     | 1111                         |
+| Fm     | 0000                         |
+| HLSPMA | 0x0xxx                       |
+| IPj    | 100                          |
+| write  | F                            |
+| b16    | x                            |
+| ID     | IP+                          |
+| next   | n^(c?fC:fZ)? Base 0 : call 2 |
+** mathi/a 0
+| a      | 0pq              | 1pq                     |
+|--------+------------------+-------------------------|
+| set 8s | A                | 0 1 1 !(p&q)            |
+| ALU    | I                | I                       |
+| ALUl   | A                | A                       |
+| ALUc   | +k 1p p^(fC&q) x | pV!q p&q 1 p&!q 1 p 1 p |
+| Fs     | 0q00             | 0 p&q !(pVq) 0          |
+| Fr     | 1011             | 10 p&q p&q              |
+| Fm     | 1011             | 1011                    |
+| HLSPMA | 0x0xxx           | 0x0xxx                  |
+| IPj    | 10x              | 10x                     |
+| write  | F                | F                       |
+| b16    | x                | x                       |
+| ID     | IP+              | IP+                     |
+| next   | Base 0           | Base 0                  |
+** ret/p 0
+| set 8s | (MW)    |
+| ALU    | x       |
+| ALUl   | x       |
+| ALUc   | x       |
+| Fs     | 0000    |
+| Fr     | 1111    |
+| Fm     | 0000    |
+| HLSPMA | 0x1010  |
+| IPj    | 00x     |
+| write  | F       |
+| b16    | x       |
+| ID     | SP+     |
+| next   | ret/p 1 |
+** ret/p 1
+| set 8s | J                  |
+| ALU    | MR                 |
+| ALUl   | x                  |
+| ALUc   | ^0kxx              |
+| Fs     | 0000               |
+| Fr     | 1111               |
+| Fm     | 0000               |
+| HLSPMA | 0x0xxx             |
+| IPj    | 00x                |
+| write  | F (set preIE if p) |
+| b16    | x                  |
+| ID     | x                  |
+| next   | Base 0             |
+** CB 0
+| I      | mnopqrst                |
+|--------+-------------------------|
+| set 8s | 0rst                    |
+| ALU    | 0rst                    |
+| ALUl   | x                       |
+| ALUc   | ? ab cd e f             |
+| Fs     | 0 0 !m&n 0              |
+| Fr     | 1 m m mVnV!(o&p&!q)     |
+| Fm     | !m 0 0 !(mVn)&!(r&s&!t) |
+| HLSPMA | 0x0x11                  |
+| IPj    | !rV!sVt 0 x             |
+| write  | F                       |
+| b16    | HL                      |
+| ID     | IP+                     |
+| next   | r&s&!t? CB 1 : Base 0   |
+a is m|n? o : !(p&q)
+b is (m|n|fC&!o&q)&p
+c is q|!m&!n&!p
+d is m|n|p&!q&!o&fC
+e is q&!m|n
+f is m|n|o&(p^q)
+** CB 1
+| I      | mnopqrst             |
+| set 8s | 0rst                 |
+| ALU    | 0rst                 |
+| ALUl   | x                    |
+| ALUc   | ? ab cd e f          |
+| Fs     | 0  0 !m&n 0          |
+| Fr     | 1 m m mVnV!(o&p&!q)  |
+| Fm     | !m 0 0 !m&!n         |
+| HLSPMA | 0x0x11               |
+| IPj    | !m&n 0 x             |
+| write  | F                    |
+| b16    | HL                   |
+| ID     | IP+                  |
+| next   | !m&n? Base 0 : Write |
+a is m|n? o : !(p&q)
+b is (m|n|fC&!o&q)&p
+c is q|!m&!n&!p
+d is m|n|p&!q&!o&fC
+e is q&!m|n
+f is m|n|o&(p^q)
+** Write = ldn16/0 2 or stsp 3 or ldw/00 1
+| set 8s | -      |
+| ALU    | x      |
+| ALUl   | x      |
+| ALUc   | x      |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 10x    |
+| write? | T      |
+| b16    | x      |
+| ID     | IP+    |
+| next   | Base 0 |
+** nop
+| set 8s | -      |
+| ALU    | x      |
+| ALUl   | x      |
+| ALUc   | x      |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x0xxx |
+| IPj    | 00x    |
+| write? | F      |
+| b16    | x      |
+| ID     | x      |
+| next   | Base 0 |
+** Int
+| set 8s | MW     |
+| ALU    | Q      |
+| ALUl   | x      |
+| ALUc   | ^0kxx  |
+| Fs     | 0000   |
+| Fr     | 1111   |
+| Fm     | 0000   |
+| HLSPMA | 0x1011 |
+| IPj    | 000    |
+| write? | T      |
+| b16    | SP     |
+| ID     | SP-    |
+| next   | call 4 |
+* State numbering
+| Base ij    | 00000ij |
+| Interrupt  | 0010000 |
+| ret/p i    | 00001pi |
+| CB i       | 001010i |
+| jr i       | 001001i |
+| ldn16/p ij | 0001pij |
+| Write      | 0001010 |
+| Write      | 1000011 |
+| Write      | 1001001 |
+| Write      | a00b0ca |
+| nop        | 0100000 |
+| STOP       | 0111111 |
+| HALT       | 0111110 |
+| stsp ij    | 10000ij |
+| jr/cn      | 10001cn |
+| ldw/pq i   | 1001pqi |
+| ld8/opq    | 1011opq |
+| ld16/pq i  | 1010pqi |
+| jp ij      | 11000ij |
+| call 4     | 1100011 |
+| call ij    | 11001ij |
+| mathi/opq  | 1101opq |
+| jp/cn i    | 1110icn |
+| call/cn i  | 1111icn |
+* Microcode (out-by-out, then state, then I)
+state is fghijkl
+I is mnopqrst
+z is !(f?l:q)^((f?k:p)?fC:fZ)
+c is previous output of ALU.fC
+OPQ is f?opq:jkl
+u is o&p&!q
+v is r&s&!t
+** set 8s
+*** Base kl
+If Int is on in Base 0, set 0110.
+**** m = n = 0
+Set !r&t&(s?o&p:!q) |!(r|t)|!r^s p&s|(r?p|s:!t) (r&!s)?q:l^t
+**** mn = 01
+Set 0opq
+**** mn = 10
+Set 011 !(o&p&q|v&!l)
+**** m = n = 1
+Set !s&(t?l&q:k) !(l&(k|t))|r|o !(l&(k|t))|r|t&p&!q
+k&!(s|t)|l&!r&(o&p|!k&(o|t))
+*** Int
+Set 0110
+*** ret/k l
+Set 1 0 0 0
+*** CB l
+Set 0 r|!m&n s|!m&n t&(m|!n)
+*** jr l
+Set 1 !l 0 !l
+*** ldn16/j kl
+Set !k 1 k !l&(!k|j)
+*** nop/STOP/HALT
+Just set 0110
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+Set k?i^j:!(i&l) i|!j i&!k&l|(j?!i:k) j&!(i&k)|!l&(!k|i)
+*** 101ijkl (ld16/jk l, ld8/jkl)
+Set !i&j&k j k !i^l
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Set !(i|k) i|k 1 i&!(j&k&l)|!(k|l)
+*** 111ijkl (jp/kl j, call/kl j)
+Set 101 !j
+** ALU
+Merge 1****** on g first.
+*** Base kl
+**** m = n = 0
+Use r?s&o:t?o&p:!s o^(r&s)|!(r|t) p|r&s|!(r|t) !l&(q|s)
+**** m != n
+Use 0rst
+**** m = n = 1
+Use s&t|l&o&p&r !r|!s&o !r|(p&!(s|k&o)) r&k|!l&(!r|s|o&p)
+**** If INT is on
+Use 1000
+*** Int
+Use 1001
+*** ret/k l
+Use 0110
+*** CB l
+Use 0rst
+*** jr l
+Use 100 !l
+*** ldn16/j kl
+Use !k k 1 0
+*** nop/STOP/HALT
+Don't bother.
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+Use !i|k i|k&!j i|!j i?!l:j
+*** 101ijkl (ld16/jk l, ld8/jkl)
+Use 1010
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Use 1 0 i|!k !i&k&l
+*** 111ijkl (jp/kl j, call/kl j)
+Use 1010
+** ALUl
+*** Base kl
+Use !(m|s) !(l|m|s)
+*** Int
+X
+*** ret/k l
+X
+*** CB l
+X
+*** jr l
+Use 01
+*** ldn16/j kl
+X
+*** nop/STOP/HALT
+X
+*** 0xxxxxx
+Use !(m|s|h) !(l|m|s)|h
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+Use 01
+*** 101ijkl (ld16/jk l, ld8/jkl)
+X
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Use 00
+*** 111ijkl (jp/kl j, call/kl j)
+X
+*** Total for 1xxxxxx
+Use 0 !g
+*** Total
+Use !(m|s|f|h) f?!g:!(l|m|s)|h
+** ALUc (type/left)
+Bond 1****** with g first.
+*** Base kl
+**** m = n = 0
+Use r?!s|o&!(p|q):t r?!(s&o&(p|q)):t
+r&s&(o|!(p&q))|!(r|s)&t t&(s&q&(fC&p&!o|!r|!p&o)|r&!s)
+**** mn = 01
+Use 0000
+**** mn = 10
+Use !(o&q)|p !o|p&q 1 o&p&!q
+**** m = n = 1
+Use r&s r&s 0 0
+**** If INT is on
+Use 0000
+*** Int
+Use 0000
+*** ret/k l
+Use 0000
+*** CB l
+Use 01 (m|n)?o:!(p&q) (m|n|fC&!o&q)&p
+*** jr l
+Use 1 1 !l m&l
+*** ldn16/j kl
+Use 0000
+*** nop/STOP/HALT
+X
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+Use i?k:j i?k:j i?!l:j i&k&l&m
+*** 101ijkl (ld16/jk l, ld8/jkl)
+Use 0000
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Use i&(!j|k|!l) i&(!j|k&l) i i&j&k&!l
+*** 111ijkl (jp/kl j, call/kl j)
+Use 0000
+** ALUc (right/general)
+Bind 1****** on g first.
+*** Base kl
+Bind on m first.
+**** m = n = 0
+Use !(r&s&(q?o:p)) r&s&(o?!(p|q)&fN:p&!q&fC)
+!t|s&(!(l|r^q)|r&o&fN)|!r&l&c 0
+**** mn = 01
+Use 10xx
+**** mn = 10
+Use 1 p p^fC&q|o p
+**** m = n = 1
+Use 10 k|!l|c x
+**** If INT is on
+Use 10xx
+*** Int
+Use 10xx
+*** ret/k l
+Use 10xx
+*** CB l
+Use q|!(m|n|o|p) m|n|!(o|q)&p&fC q&!m|n m|n|o&(p^q)
+*** jr l
+Use 1 0 c&l x
+*** ldn16/j kl
+Use 10xx
+*** nop/STOP/HALT
+It doesn't much matter.
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+Use k|l|!i 0 i&l&fC x
+*** 101ijkl (ld16/jk l, ld8/jkl)
+Use 10xx
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Use 1 i&k j|k^l&fC k
+*** 111ijkl (jp/kl j, call/kl j)
+Use 10xx
+** Fs
+Might as well merge 1****** on g first.
+*** Base kl
+Merge first on m.
+**** m = n = 0
+Use r&t&(!s|o&!p&q) r&s&t&o&!p&q o&p&r&s&t&!(fC&q)
+**** mn = 01
+Use 000
+**** mn = 10
+Use q&(!o|p) o&!(p|q) 0
+**** mn = 11
+Use 000
+**** Total
+!n&(m?q&(!o|p):r&t&(!s|o&!p&q)) !n&o&!p&(m?!q:r&t&q) o&p&r&s&t&!(fC&q|m|n)
+**** When INT is on
+Use 000
+*** Int
+Use 0000
+*** ret/k l
+Use 000
+*** CB l
+Use 0 !m&n 0
+*** jr l
+Use 000
+*** ldn16/j kl
+Use 000
+*** nop/STOP/HALT
+Use 000
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+Use 000
+*** 101ijkl (ld16/jk l, ld8/jkl)
+Use 000
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Use i&k&(l|!j) i&j&!(k|l) 0
+*** 111ijkl (jp/kl j, call/kl j)
+Use 000
+** Fr
+Merge on g first for 1******
+*** Base kl
+**** m = n = 0
+Use o|!(r&s&t) s&(!(r&t)|o&!p)|!(l|r) !(r&s&t) !(r&s&t&o&p)
+**** mn = 01
+Use 1111
+**** mn = 10
+Use 1 0 !o|p&q !o|p&q|v&!l
+**** m = n = 1
+Use r|s|k|!(u&t) x4
+**** When INT is on and Base 0
+Use 1111
+*** Int
+Use 1111
+*** ret/k l
+Use 1111
+*** CB l
+Use 1 m m m|n|!u
+*** jr l
+Use 1111
+*** ldn16/j kl
+Use 1111
+*** nop/STOP/HALT
+Use 1111
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+Use !(i&k)|l !(i&k)|l 1 1
+*** 101ijkl (ld16/jk l, ld8/jkl)
+Use 1111
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Use 1 !i !(i&j)|k&l !(i&j)|k&l
+*** 111ijkl (jp/kl j, call/kl j)
+Use 1111
+** Fm
+For 1******, merge on g first.
+*** Base kl
+**** m = n = 0
+Use r&(!s|t&!(p|q)) 0 !s&(r|l) t&(!r^s)&(r&!o|r^q)
+**** mn = 01
+Use 0000
+**** mn = 10
+Use 1 0 1 !v|l
+**** m = n = 1
+Use 0 !(r|s|k)&t&u 0 0
+**** Total
+!n&(m|r&(!s|t&!(p|q))) m&n&t&u&!(r|s|k) !n&(m|!s&(r|l))
+!n&(m?!v|l:t&(!r^s)&(r&!o|r^q))
+**** When INT is on and Base 0
+Use 0000
+*** Int
+Use 0000
+*** ret/k l
+Use 0000
+*** CB l
+Use !m 0 0 !(m|n)&(l|!v)
+*** jr l
+Use 0000
+*** ldn16/j kl
+Use 0000
+*** nop/STOP/HALT
+Use 0000
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+Use 0 0 i&k&!l i&k&!l
+*** 101ijkl (ld16/jk l, ld8/jkl)
+Use 0000
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Use i 0 i i
+*** 111ijkl (jp/kl j, call/kl j)
+Use 0000
+** HLSP
+Might as well merge 1****** on g first.
+*** Base kl
+**** m = n = 0
+!(l|r|t)&s&o 0 0 x
+**** mn = 01
+Use 0x0x
+**** mn = 10
+Use 0x0x
+**** m = n = 1
+Use 0 x r&k|!(r|s|t|o|l|!z)|t&(s?l:(r^k^l)&!q|!(r|l|o&!p&q)) o&q&t&!(r|k)
+**** Total
+!(m|n|l|r|t)&s&o 0 m&n&... o&q&t&!(r|k)
+**** When INT is on and Base 0
+Use 0x10
+*** Int
+Use 0x10
+*** ret/k l
+Use 0 x !l 0
+*** CB l
+Use 0x0x
+*** jr l
+Use 0x0x
+*** ldn16/j kl
+Use 0x0x
+*** nop/STOP/HALT
+Use 0x0x
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+Use 0x0x
+*** 101ijkl (ld16/jk l, ld8/jkl)
+Use 0x0x
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Use 0 x !i&j&k 0
+*** 111ijkl (jp/kl j, call/kl j)
+Use 0x0x
+** MAIP
+Join 1****** on g first
+*** Base kl
+**** m = n = 0
+Use 1 1 r?s|!u:l|!(s|q&t) 0
+**** mn = 01
+Use 1 1 !u^v|l 0
+**** mn = 10
+Use 1 1 l|!v 0
+**** m = n = 1
+Use t|!(l|o) r|!t&o
+!t&(r|o&(!s|l)|l&!z)|(r?q&!s:t&(s|k)|(o?q:s)) !(r|s|p)&t&o&q
+**** Total
+!(m&n&(l|o))|t !(m&n)&(!t&o|r)
+[comp.] m&n&!(r|s|p)&t&o&q
+**** When INT is on and Base 0
+Use 1100
+*** Int
+Use 1100
+*** ret/k l
+Use 1000
+*** CB l
+Use 1 1 l?!m&n:!v 0
+*** jr l
+Use x x 0 l
+*** ldn16/j kl
+Use x x !l 0
+*** nop/STOP/HALT
+Use xx00
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+Use k 0 i?l:j?!z:!k^l 0
+*** 101ijkl (ld16/jk l, ld8/jkl)
+Use 1 1 !(i&j&k)|l 0
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Use 1 1 i|!k !(i|j)&k
+*** 111ijkl (jp/kl j, call/kl j)
+Use xx10
+** jpeidiwt
+Merge 1****** on g first
+Note: the actual string is j pei di (!st && I=0166) wt
+(that expr is !(f|g|h|i|j|m)&n&u&v)
+*** Base kl
+**** m&n = 0
+Use x000
+**** m = n = 1
+Use !l !r&s&t&o&q !r&s&t&o&!q l&r&(!k^s)
+**** When INT is on and Base 0
+Use 1010
+*** Int
+Use 0001
+*** ret/k l
+Use x k&l 0 0
+*** CB l
+Use x000
+*** jr l
+Use x000
+*** ldn16/j kl
+Use x00 !j&k
+*** nop/STOP/HALT
+Use x000
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+Use x00 !j&(k?!i:i&l)
+*** 101ijkl (ld16/jk l, ld8/jkl)
+Use x000
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Use 000 !i&k&l
+*** 111ijkl (jp/kl j, call/kl j)
+Use 0000
+** b16
+*** Base kl
+**** m = n = 0
+Use o !o&p
+**** m != n
+Use 10
+**** m = n = 1
+Use 1 r
+**** Total
+m|n|o (!m^n)&(m?r:!o&p)
+**** When INT is on and Base 0
+Use 11
+*** Int
+Use 11
+*** ret/k l
+X
+*** CB l
+Use 10
+*** jr l
+X
+*** ldn16/j kl
+X
+*** nop/STOP/HALT
+X
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+X
+*** 101ijkl (ld16/jk l, ld8/jkl)
+Use 10
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Use 11
+*** 111ijkl (jp/kl j, call/kl j)
+X
+** ID
+Might as well bond 1****** on g first.
+*** Base kl
+**** m = n = 0
+Use !(r|l)&s&p / !(r|l)&s&o 0
+**** m != n
+Use 0 / 00
+**** m = n = 1
+Use r&(l|t&!q) / 0 (!l^r)&(l|!(o|s))|t&!(k|q|s)
+**** When INT is on and Base 0
+Use 1 / 01
+*** Int
+Use 1 / 01
+*** ret/k l
+Use 0 / 01
+*** CB l
+Use 0 / 00
+*** jr l
+X
+*** ldn16/j kl
+Use 0 / 00
+*** nop/STOP/HALT
+X
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+Use 0 / k&!(j|l) k&!(j|l)
+*** 101ijkl (ld16/jk l, ld8/jkl)
+Use 000
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Use !i&k / 0 !i&k
+*** 111ijkl (jp/kl j, call/kl j)
+Use 0 / 00
+** next
+*** Base kl
+Merge last on m^n.
+**** m = n = 0
+Use r&l|v|!r&(!(s&t)&(o|!p&q)|!q&(s^t)) !(r|s|t|o|q)&p
+v|!(r|s)&(t?!q:p&!o) r&l|v|!(q|t|r)&(s|p&!o)
+!(r|s|q)&(o|p&!t)|o&(v|!(r|s|t)) p&(v|!(r|s|t&q))
+!(l|r)&(s|q&(o|t))|q&v|p&!(q|(r?s:t))&(!r^o)
+**** mn = 01
+Use 0 u&v u&v u u&v u v&!(u|l)
+**** mn = 10
+Use 0 0 0 0 0 0 v&!l
+**** m = n = 1
+Use !t&(o^s|u|r)|(r?k|q&!s:!(o|q)&s) r&!t|(s?k|!(o|t&(q|r)):q&(o&p&t|r))
+!(o|r)&s&(q|!t)|r&!(s|t) !t&(r|o&(!s|p|q)) t?q&(r?!s:l|!o&s):k|o&(r?s:p&(q|!s))
+l&(r|!(k|(t?!p&q:(o|!z))))|!t&(p&(r|!o&s)|o&q&!(r|s))
+(q^t)&!k&(r|!s&t)|r&(s&t|l)|!(l?k|o|t|!z:r|(s?t|!o^q:o))
+**** When INT is on and Base 0
+Use 0010000
+*** Int
+Use 1100011
+*** ret/k l
+Use 0000 !l k&!l !l
+*** CB l
+Use 0 0 v&!l l&(m|!n) v&!l l&(m|!n) v&!l
+*** jr l
+Use 0 0 !l 0 0 !l !l
+*** ldn16/j kl
+Use 0 0 0 !k j&!k l !(k|l)
+*** nop/STOP/HALT
+Use 00000000
+*** 100ijkl (stsp kl, jr/kl, ldw/jk l)
+Use !((!i&j)|(i|k)&l) i&!j&k&l !i&j&z i&!l
+i&j&!l i?k&!l:j?z:k^l !((!i&j)?!z:l)
+*** 101ijkl (ld16/jk l, ld8/jkl)
+Use !l&(!i|j&k) 0 !(i|l) 0 !(i|l)&j k&!l&(!i|j) !l&(!i|j&k)
+*** 110ijkl (jp kl, call kl, mathi/jkl)
+Use !i&(!k|j) !i&(!k|j) 0 !i&j j&!(i|k&l) !i&(j&k|!k&l) !i&(j&k|!(k|l))
+*** 111ijkl (jp/kl j, call/kl j)
+Use !j|z !j|z !j i&!j !j|i&z j?z:k !j&l
