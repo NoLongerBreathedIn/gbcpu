@@ -12,7 +12,9 @@ import GB.Util.Base (Signalish,
                      (^!^),
                      neg,
                      fromBool,
-                     huh)
+                     huh,
+                     mux2,
+                     if')
 
 import Data.Function (on)
 import Data.List (delete)
@@ -35,6 +37,7 @@ instance Signalish (Symb a) where
   (|!|) = (&&&) `on` neg -- x |!| y <=> !x && !y
   (&!&) = (neg .) . (&&&) -- x &!& y <=> !(x && y)
   (^!^) = (^^^) . neg -- x <-> y <=> !x ^^ y
+  mux2 m = (. (m &&&)) . (|||) . (neg m &&&)
   fromBool = Inj
   neg Unknown = Unknown
   neg (Not x) = x -- !!x <=> x
@@ -116,10 +119,6 @@ equivalentWhen c x y = maybe True (const False) $ findIneqWhen c x y
 
 repl :: (Eq a) => a -> Bool -> a -> Symb a
 repl a x b = if a == b then Inj x else Symb b
-
-if' :: Bool -> a -> a -> a
-if' True = const
-if' False = const id
 
 assignList :: (Eq a) => [(a, Symb a)] -> Symb a -> Symb a
 replList :: (Eq a) => a -> [(a, Symb a)] -> Symb a

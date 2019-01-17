@@ -7,6 +7,10 @@ import Control.Arrow (first)
 import Control.Monad (join)
 import Data.Function (on, fix)
 
+if' :: Bool -> a -> a -> a
+if' True = const
+if' False = const id
+
 class Signalish s where
   (^^^) :: s -> s -> s
   (&&&) :: s -> s -> s
@@ -18,6 +22,7 @@ class Signalish s where
   neg :: s -> s
   fromBool :: Bool -> s
   huh :: s
+  mux2 :: s -> s -> s -> s
   
 instance Signalish Bool where
   (^^^) True = not
@@ -31,6 +36,7 @@ instance Signalish Bool where
   neg = not
   fromBool = id
   huh = True
+  mux2 = flip . if'
   
 instance Signalish (Signal Bool) where
   (^^^) = curry xor2
@@ -43,6 +49,7 @@ instance Signalish (Signal Bool) where
   neg = inv
   fromBool = bool
   huh = fromBool True
+  mux2 = flip . lift3 If
 
 infixl 7 &&&
 infixl 5 |||
@@ -89,9 +96,6 @@ adder = (.zip) . (.) . row (uncurry . fullAdd)
 incDec :: (Signalish a) => a -> [a] -> [a]
 incDec a = map (^^^ a) . fst . row halfAdd (fromBool True) . map (^^^ a)
 
-mux2 :: (Signalish a) => a -> a -> a -> a
-mux2 m = (. (m &&&)) . (|||) . (neg m &&&)
-
 muxb :: (Signalish a) => a -> Either Bool a -> Either Bool a -> Either Bool a
 
 wrapPlain :: (Signalish a) => Either Bool a -> a
@@ -115,13 +119,20 @@ muxc _ Nothing x = x
 muxc _ x Nothing = x
 muxc m (Just x) (Just y) = Just (muxb m x y)
 
+mmux :: (Signalish a) => [a] -> [[a]] -> [a]
+
+mmux [] [a] = a
+mmux (s:ss) as = mmux ss $
+                 uncurry (zipWith $ zipWith $ mux2 s) $ splitAt l as
+  where l = length as `div` 2
+
 -- Note that these only work with actual signals.
+-- Note: Rising edge.
 register :: Signal Bool -> Signal Bool -> Signal Bool ->
             [Signal Bool] -> [Signal Bool]
 -- clock write zero data
 registerAW :: Signal Bool -> Signal Bool -> [Signal Bool] -> [Signal Bool]
 -- clock zero data
-
 
 srff :: Signal Bool -> Signal Bool -> Signal Bool
 srff s r = fst $ fix $ \(q, q') -> (q' |!| r, q |!| s)

@@ -70,10 +70,6 @@ rep :: Int -> a -> [a] -> [a]
 rep 0 = const id
 rep n = (.) <$> (:) <*> rep (n - 1)
 
-if' :: Bool -> a -> a -> a
-if' True = const
-if' False = const id
-
 sel :: a -> a -> Bool -> a
 sel a _ True = a
 sel _ a False = a

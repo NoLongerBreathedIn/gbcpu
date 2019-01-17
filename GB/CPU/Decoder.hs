@@ -1,15 +1,15 @@
 {-# LANGUAGE DeriveFunctor #-}
 
 module GB.CPU.Decoder (decode,
-                    registers,
-                    regOutput,
-                    flags,
-                    carry,
-                    MicroInstruction(..),
-                    CPUInputs(..),
-                    RegisterOutputs(..),
-                    RegisterSet,
-                    CPURegisters(fIE, fpIE)) where
+                       registers,
+                       regOutput,
+                       flags,
+                       carry,
+                       MicroInstruction(..),
+                       CPUInputs(..),
+                       RegisterOutputs(..),
+                       RegisterSet,
+                       CPURegisters(fIE, fpIE)) where
 
 import Lava hiding (neg)
 import GB.CPU.Alu
@@ -168,18 +168,6 @@ registers set ck rs = CPURegisters a b c d e f h l ip sp
 ensureLength :: Int -> [a] -> [a]
 ensureLength i = elems . listArray (1, i)
 
-mmuxc :: (Signalish a) => [a] -> [[Maybe (Either Bool (a))]] -> [a]
-mmux :: (Signalish a) => [a] -> [[a]] -> [a]
-
-mmux [] [a] = a
-mmux (s:ss) as = mmux ss $
-                 uncurry (zipWith $ zipWith $ mux2 s) $ splitAt l as
-  where l = length as `div` 2
-mmuxc [] [a] = map (wrapPlain . fromJust) a
-mmuxc (s:ss) as = mmuxc ss $
-                  uncurry (zipWith $ zipWith $ muxc s) $ splitAt l as
-  where l = length as `div` 2
-
 decode mi inp st = RegisterSet eset sset aluo b16 id16 o16
                      spie cie wm fnew where
   [opA, opB, kL, cL, kR, cR, cf, co] = aluC mi
@@ -218,11 +206,12 @@ decode mi inp st = RegisterSet eset sset aluo b16 id16 o16
   o16 = interrupted :
     zipWith (mux2 interrupted) (take 3 $ drop 2 $ instr inp) (ivec inp)
   p16 = setSixteens mi
-  nincip = ors (iDec mi) ||| neg (p16 !! 6) ||| (p16 !! 7)
-  wm = weirdM st &&& neg nincip ||| (miscFlags mi !! 3) &&&
+  naffip = (p16 !! 6) |!| (p16 !! 7)
+  nincip = (p16 !! 6) !|| (p16 !! 7) ||| ors (iDec mi)
+  wm = weirdM st &&& naffip ||| (miscFlags mi !! 3) &&&
        neg (fpIE st ||| fIE st)
   -- Weird mode on if HALT and interrupts off,
-  -- otherwise off if would increment IP,
+  -- otherwise off if would affect IP,
   -- otherwise no change.
   ss = uncurry (++) $ second (map (&&& (nincip ||| neg (weirdM st)))) $
        splitAt 6 p16
