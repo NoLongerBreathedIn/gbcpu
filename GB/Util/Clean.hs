@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass, TypeFamilies, TupleSections #-}
+{-# LANGUAGE PatternSynonyms #-}
 module GB.Util.Clean (NetList, listify, showNL,
                       Fixable, SingleVar, ListVar,
                       singleVar, listVar) where
@@ -20,7 +21,9 @@ import Data.Function
 import Data.Array
 import Data.Functor.Compose
 import Data.Functor.Product
+import Data.Maybe hiding (mapMaybe)
 import qualified Data.Set as S
+import qualified Data.IntSet as IS
 
 data NetList = NetList { name :: String,
                          inputs :: [(String, Int)],
@@ -37,23 +40,47 @@ listVar = flip (curry VarList)
 
 type SR = (Maybe String, Int)
 
-data Gate = High
-          | Low
-          | Id SR
-          | Not SR
-          | GAnd SR SR
-          | GNand SR SR
-          | GOr SR SR
-          | GNor SR SR
-          | GXor SR SR
-          | GIff SR SR
-          | GImpl SR SR
-          | GNimpl SR SR
-          | Mux SR SR SR -- s d0 d1
-          | MuxNS SR SR SR -- s d0b d1
-          | MuxSN SR SR SR -- s d0 d1b
-          | MuxN SR SR SR -- s d0b d1b
+data Binop = BAnd | BOr | BXor | BImpl
+  deriving (Eq, NFData)
+
+data Gate = GConst Bool
+          | GUnop Bool SR
+          | GBinop Bool Binop SR SR -- negafter
+          | GMux Bool Bool SR SR SR -- neg d0, neg d1, s, d0, d1,
           deriving (Eq, NFData)
+
+pattern GAnd = GBinop False BAnd
+pattern GOr = GBinop False BOr
+pattern GNand = GBinop True BAnd
+pattern GNor = GBinop True BOr
+pattern GXor = GBinop False BXor
+pattern GIff = GBinop True BXor
+pattern GImpl = GBinop False BImpl
+pattern GNimpl = GBinop True BImpl
+pattern Mux = GMux False False
+pattern MuxNS = GMux True False
+pattern MuxSN = GMux False True
+pattern MuxN = GMux True True
+pattern High = GConst True
+pattern Low = GConst False
+pattern Id = GUnop False
+pattern Not = GUnop True
+
+{-# COMPLETE High, Low, GUnop, GMux, GBinop #-}
+{-# COMPLETE GConst, Id, Not, GMux, GBinop #-}
+{-# COMPLETE High, Low, Id, Not, GMux, GBinop #-}
+{-# COMPLETE GConst, GUnop, Mux, MuxNS, MuxSN, MuxN, GBinop #-}
+{-# COMPLETE High, Low, GUnop, Mux, MuxNS, MuxSN, MuxN, GBinop #-}
+{-# COMPLETE GConst, Id, Not, Mux, MuxNS, MuxSN, MuxN, GBinop #-}
+{-# COMPLETE High, Low, Id, Not, Mux, MuxNS, MuxSN, MuxN, GBinop #-}
+{-# COMPLETE GConst, GUnop, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE High, Low, GUnop, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GConst, Id, Not, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE High, Low, Id, Not, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GConst, GUnop, Mux, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE High, Low, GUnop, Mux, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GConst, Id, Not, Mux, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE High, Low, Id, Not, Mux, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
 
 class Fixable o where
   type Fixup o
@@ -194,18 +221,17 @@ readNetList b =
   handleLines b . map (filter (`notElem` ", ();:")) . tail .
   dropWhile (not . isPrefixOf "begin") . lines
 
-strategies = [simplifyGates, removeUnused, mergeCommonNots,
-              iterateOnceTillDone mergeNotPre,
-              removeNots . removeWires, mergeConsts, handleOutputs]
+strategies = [simplifyGates, removeUnused, mergeCommonNots, mergeConsts,
+              mergeNotsPre, removeNotsAndWires, handleOutputs]
 
 parallelSimp :: (Traversable t) => (a -> Maybe a) -> t a -> Maybe (t a)
 
 parallelSimp = (uncurry (which Just (const Nothing) . getAny) .) .
   traverse . ap (flip maybe (Any True,) . (mempty,))
 
-nlToWhatsit = pairUp . first (Compose . Compose . Compose)
+nlToWhatsit = pairUp . first (Compose . Compose . Compose) . getNL
 
-whatsitToNL = first (getCompose . getCompose . getCompose) . unpair
+whatsitToNL = NL . first (getCompose . getCompose . getCompose) . unpair
 
 instance Functor NL where
   fmap f = whatsitToNL . fmap f . nlToWhatsit
@@ -222,66 +248,172 @@ pairUp = uncurry Pair
 unpair (Pair a b) = (a, b)
 
 simplifyGates = parallelSimp gateSimp where
-  gateSimp (GAnd x y) | x == y = Just $ Id x
-  gateSimp (GOr x y) | x == y = Just $ Id x
-  gateSimp (GNand x y) | x == y = Just $ Not x
-  gateSimp (GNor x y) | x == y = Just $ Not x
-  gateSimp (GXor x y) | x == y = Just $ Low
-  gateSimp (GIff x y) | x == y = Just $ High
-  gateSimp (GImpl x y) | x == y = Just $ High
-  gateSimp (GNimpl x y) | x == y = Just $ Low
-  gateSimp (Mux x y z)
-    | y == z = Just $ Id y
-    | x == y = Just $ GAnd x z
-    | x == z = Just $ GOr x y
-  gateSimp (MuxNS x y z)
-    | y == z = Just $ if x == y then High else Iff x y
-    | x == y = Just $ GImpl x z
-    | x == z = Just $ GImpl y x
-  gateSimp (MuxSN x y z)
-    | y == z = Just $ if x == y then Low else Xor x y
-    | x == y = Just $ GNimpl x z
-    | x == z = Just $ GNimpl y x
-  gateSimp (MuxN x y z)
-    | y == z = Just $ Not y
-    | x == y = Just $ GNand x z
-    | x == z = Just $ GNor x y
+  gateSimp (GBinop f op x y) | x == y = Just $ case op of
+                                 BAnd -> GUnop f x
+                                 BOr -> GUnop f x
+                                 BXor -> GConst f
+                                 BImpl -> GConst (not f)
+  gateSimp (GMux f0 f1 s d0 d1)
+    | d0 == d1 = Just $ if f0 == f1
+                        then GUnop f0 d0
+                        else if s == d0
+                             then GConst f0
+                             else GBinop f0 BXor s d0
+    | s == d0 = Just $ GBinop f1 (if f0 == f1 then BAnd else BImpl) d0 d1
+    | s == d1 = Just $ GBinop f1 (if f0 == f1 then BOr else BImpl) d0 d1
   gateSimp _ = Nothing
 
-removeUnused x@(NL (out, int)) =
+removeUnused (NL (out, int)) =
   if IM.null removed then Nothing else Just $ NL (out, retained) where
-    retained = IM.intersection int used
-    removed = int IM.\\ used
-    used = foldMap (foldMap justNumbers . wires) x
+    retained = IM.restrictKeys int used
+    removed = IM.withoutKeys int used
+    used = repeatUntilNoChange (foldMap $ foldMap justNumbers . wires) $
+           foldMap (foldMap justNumbers . wires) out
+
+
+repeatUntilNoChange :: Eq a => (a -> a) -> a -> a
+repeatUntilNoChange f x = if x == x' then x else repeatUntilNoChange x' where
+  x' = f x
 
 wires :: Gate -> [SR]
 wires g = case g of
-  Id x -> [x]
-  Not x -> [x]
-  GAnd x y -> [x, y]
-  GNand x y -> [x, y]
-  GOr x y -> [x, y]
-  GNor x y -> [x, y]
-  GIff x y -> [x, y]
-  GXor x y -> [x, y]
-  GImpl x y -> [x, y]
-  GNimpl x y -> [x, y]
-  Mux x y z -> [x, y, z]
-  MuxNS x y z -> [x, y, z]
-  MuxSN x y z -> [x, y, z]
-  MuxN x y z -> [x, y, z]
-  _ -> []
+  GConst _ -> []
+  GUnop _ x -> [x]
+  GBinop _ _ x y -> [x, y]
+  GMux _ _ s d0 d1 -> [s, d0, d1]
 
-justNumbers :: SR -> IM.IntMap ()
-justNumbers = uncurry $ maybe (const IM.singleton) (const IM.empty)
+maybeToBool :: b -> Maybe b -> (Any, b)
+maybeToBool = flip maybe (Any True,) . pure
+boolToMaybe :: (Any, b) -> Maybe b
+boolToMaybe = uncurry $ which Just (const Nothing) . getAny
+  
+replaceWires :: (SR -> Maybe SR) -> Gate -> Maybe Gate
+replaceWires = (boolToMaybe .) . replWires . (maybeToBool .) where
+  replWires f (GUnop t x) = GUnop t <$> f x
+  replWires f (GBinop a b x y) = GBinop a b <$> f x <*> f y
+  replWires f (GMux a b s x y) = GMux a b <$> f s <*> f x <*> f y
+  replWires _ x = pure x
 
-mergeCommonNots = undefined
+justNumbers :: SR -> IS.IntSet
+justNumbers = uncurry $ maybe IS.singleton (const $ const IS.empty)
 
-mergeNotPre = undefined
-removeNots = undefined
-removeWires = undefined
+justUnops :: Gate -> Maybe (SR, Bool)
+justUnops (GUnop f x) = Just (x, f)
+justUnops _ = Nothing
 
-mergeConsts = undefined
+gatherUnopsInt :: IM.IntMap Gate -> IM.IntMap (SR, Bool)
+gatherUnopsInt = IM.mapMaybe justUnops
+
+keepOnlyNots :: IM.IntMap (SR, Bool) -> IM.IntMap SR
+keepOnlyNots = IM.mapMaybe (uncurry $ flip $ which Just (const Nothing))
+
+flipNots :: IM.IntMap SR -> M.Map SR Int
+flipNots = IM.foldMapWithKey $ flip M.singleton
+
+canonMap :: IM.IntMap a -> M.Map b Int -> b -> Maybe a
+canonMap o i = (o IM.!?) <=< (i IM.!?)
+
+canonicalizeNot :: IM.IntMap SR -> M.Map SR Int -> SR -> Maybe SR
+canonicalizeNot c f a = do ac <- canonMap c f a
+                           when (a == ac) Nothing
+                           ac
+
+mergeCommonNots x@(NL (_, int)) =
+  parallelSimp (replaceWires $ canonicalizeNot c f) x where
+  c = keepOnlyNots $ gatherUnopsInt int
+  f = flipNots c
+
+counts :: Foldable t => t Gate -> IM.IntMap Int
+counts = foldr (unionWith (+)) $ foldr (unionWith (+)) $ cnt . wires where
+  cnt = uncurry $ maybe (flip IM.singleton 1) (const $ const IM.empty)
+
+findMergeableNots :: NL Gate -> IM.IntMap Int
+findMergeableNots x@(NL (_, int)) = IM.filter (inOnce $ counts x) $ 
+  IM.mapMaybe isInt $ keepOnlyNots $ gatherUnopsInt int where
+  inOnce = ((== 1) .) . flip IM.findWithDefault 0
+  isInt = uncurry $ maybe id (const $ const Nothing)
+
+notOutsAndIns :: IM.IntMap Int -> IS.IntSet
+notOutsAndIns m = (k IS.\\ v) `IS.union` (v IS.\\ k) where
+  k = keys m
+  v = IS.fromList $ IM.elems m
+  
+mergeNotAfterInto :: Gate -> Gate
+mergeNotAfterInto g = case g of
+  GConst b -> GConst (not b)
+  GUnop f x -> GUnop (not f) x
+  GBinop f o x y -> GBinop (not f) o x y
+  GMux f0 f1 s d0 d1 -> on GMux not f0 f1 s d0 d1
+
+mergeNotsPre x =
+  if null mns then Nothing
+  else Just $ second (flip (foldl' $ flip $
+                            adjust mergeNotAfterInto) mns) x where
+    mns = notOutsAndIns $ findMergableNots x
+
+checkRes :: IM.IntMap (SR, Bool) -> SR -> Maybe (SR, Bool)
+checkRes m x = do when (isJust $ fst x) Nothing
+                  v <- m IM.!? (snd x)
+                  when (fst v == x) $
+                    error "Setting x to either x or !x always for some x."
+                  return v
+
+handleNotsAndWires :: (SR -> Maybe (SR, Bool)) -> Gate -> Maybe Gate
+handleNotsAndWires = (boolToMaybe .) . hnw . ap (maybeToBool . (, False)) where
+  hnw f (GUnop b x) = huo b <$> f x
+  hnw f (GBinop b o x y) = hbo b o <$> f x <*> f y
+  hnw f (GMux f0 f1 s d0 d1) = hmx f0 f1 <$> f s <*> f d0 <*> f d1
+  hnw _ x = pure x
+  huo b0 (s, b0') = GUnop (b0 /= b0') s
+  hbo br BAnd (x, bx) (y, by) = han br bx by x y
+  hbo br BOr (x, bx) (y, by) = han (not br) (not bx) (not by) x y
+  hbo br BImpl (x, bx) (y, by) = han (not br) bx (not by) x y
+  hbo br BXor (x, bx) (y, by) = GBinop ((br /= bx) /= by) BXor x y
+  han = which (which (which GOr  $ flip GImpl)  (which GImpl  GNand))
+              (which (which GNor $ flip GNimpl) (which GNimpl GAnd))
+  hmx f0 f1 (s, bs) db0, db1 =
+    let ((d0, b0) (d1, b1)) = if' bs swap id (second (/= f0) db0,
+                                              second (/= f1) db1) in
+      GMux b0 b1 s d0 d1
+
+removeNotsAndWires x@(NS (_, int)) =
+  parallelSimp (handleNotsAndWires $ checkRes $ gatherUnops int) x
+
+gatherConsts :: IM.IntMap Gate -> IM.IntMap Bool
+gatherConsts = IM.mapMaybe justConsts where
+  justConsts (GConst b) = Just b
+  justConsts _ = Nothing
+
+correctConsts :: (Int -> Maybe Bool) -> Gate -> Maybe Gate
+correctConsts = (boolToMaybe .) . crcns . foo where
+  foo f x = maybeToBool (Right x) $ fmap Left $ uncurry $
+    maybe f (const $ const Nothing)
+  crcns f (GUnop b x) = huo b <$> f x
+  crcns f (GBinop b o x y) = hbo b <$> f x <*> f y
+  crcns f (GMux f0 f1 s d0 d1) = hmx f0 f1 <$> f s <*> f d0 <*> f d1
+  crcns _ x = pure x
+  huo b = either (GConst . (b /=)) (GUnop b)
+  hbo b o = either (either <$> evbo b o <*> lbo b o)
+                   (either <$> rbo b o <*> GBinop b o)
+  evbo b BAnd = ((b /=) .) . (&&)
+  evbo b BOr = ((b /=) .) . (||)
+  evbo b BImpl = ((b /=) .) . (<=)
+  evbo b BXor = (/=) . (b /=)
+  lbo b BAnd = which (GUnop b) (const $ GConst b)
+  lbo b BOr = which (const $ GConst $ not b) (GUnop b)
+  lbo b BImpl = which (GUnop b) (const $ GConst $ not b)
+  lbo b BXor = GUnop . (b /=)
+  rbo b BImpl = flip $ which (const $ GConst $ not b) (GUnop $ not b)
+  rbo b o = flip $ lbo b o
+  hmx f _ (Left False) = const . huo f 
+  hmx _ f (Left True) = const $ huo f
+  hmx f0 f1 q@(Right s) = either (sth q f1 . (f0 /=))
+    (either <$> flip (sthe q f0 . (f1 /=)) <*> GMux f0 f1 s)
+  sth q b c = hbo b (if b == c then BAnd else BImpl) q
+  sthe q b c = flip (hbo c $ if b /= c then BOr else BImpl) q
+mergeConsts x@(NS (_, int)) =
+  parallelSimp (correctConsts $ (IM.!?) $ gatherConsts int) x
+
 handleOutputs = undefined
 
 -- TODO: simplification algorithm, writing.

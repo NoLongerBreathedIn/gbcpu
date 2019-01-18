@@ -57,7 +57,7 @@ library
   -- other-modules:
 
   -- LANGUAGE extensions used by modules in this package.
-  other-extensions:  DeriveFunctor, ImplicitParams, FlexibleInstances, OverloadedStrings, TupleSections, DeriveGeneric, DeriveAnyClass, TypeFamilies
+  other-extensions:  DeriveFunctor, ImplicitParams, FlexibleInstances, OverloadedStrings, TupleSections, DeriveGeneric, DeriveAnyClass, TypeFamilies, PatternSynonyms
 
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.11, mtl >=2.2, chalmers-lava2000 >=1.6, array >=0.5, yaml >=0.11, text >=1.2, aeson >=1.4, deepseq >=1.4, temporary >=1.3
