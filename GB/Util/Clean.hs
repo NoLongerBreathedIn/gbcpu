@@ -439,8 +439,67 @@ handleOutputs x@(NS (out, int)) = NS (oFix, iFix) where
   (toRem, Compose (Compose (Compose oFix))) = traverse fixGate $
     Compose $ Compose $ Compose out
   fixGate (GUnop b (Nothing, i))
-    | counts IM.! i == 1 = (IS.singleton i, int IM.! i)
+    | counts IM.! i == 1 = (IS.singleton i,
+                            (if' b mergeNotAfterInto id) $ int IM.! i)
   fixGate x = (IS.empty, x)
   iFix = int `IM.withoutKeys` toRem
-    
--- TODO: simplification algorithm, writing.
+
+showPort :: String -> (String, Int) -> String
+showSignal :: Int -> String
+dumpComponent :: (SR, Gate) -> String
+dumpFancy :: (String, [Gate]) -> String
+
+showNL (NetList n i o g) = unlines $
+  unwords ["entity", n, "is"]:thePorts ++
+  unwords ["component", n]:thePorts ++
+  unwords ["architecture structural of", n, "is"]:
+  map showSignal (IM.keys g) ++
+  "begin":
+  map (dumpComponent . first (Nothing,)) (IM.assocs g) ++
+  concatMap dumpFancy o
+  where
+    thePorts = "  port (": map (showPort "in") i ++
+      map (showPort "out" . second length) (init o) ++
+      [(++");") ++ init $ showPort "out" $ second length $ last o,
+       "end;",
+       ""]
+
+showPort ty (n, l) = "    " ++ unwords [n, ":", ty, "bit"] ++
+                     if l /= 1
+                     then unwords ["_vector", '(':show (l - 1), "downto 0);"]
+                     else ";"
+showSignal = ('v':) . show
+
+dumpFancy (n, gs) = zipWith (dumpComponent . (,) . (n,))
+                    (iterate (-1+) $ length gs - 1) gs
+
+showSR :: SR -> String
+showSR = uncurry $ maybe showSignal $ (. (('(':) . (++ ")") . show)) . (++)
+showSRBlob :: SR -> String
+showSRBlob = uncurry $ maybe showSignal $ (. (('_':) . show)) . (++)
+showGateType :: Gate -> String
+
+dumpComponent (n, g) = concat $
+                       ["  c_", showSRBlob n,
+                        " entity work.",
+                        showGateType g,
+                        " port map ("] ++
+                        intersperse ", " (map showSR $ wires g ++ [n]) ++
+                        [");"]
+                        
+showGateType (GAnd _ _) = "andG"
+showGateType (GOr _ _) = "orG"
+showGateType (GNand _ _) = "nandG"
+showGateType (GNor _ _) = "norG"
+showGateType (GXor _ _) = "xorG"
+showGateType (GIff _ _) = "xnorG"
+showGateType (GImpl _ _) = "implG"
+showGateType (GNimpl _ _) = "nimplG"
+showGateType (Mux _ _ _) = "mux2"
+showGateType (MuxNS _ _ _) = "muxnk"
+showGateType (MuxSN _ _ _) = "muxkn"
+showGateType (MuxN _ _ _) = "muxn"
+showGateType High = "vdd"
+showGateType Low = "gnd"
+showGateType (Id _) = "wire"
+showGateType (Not _) = "invG"
