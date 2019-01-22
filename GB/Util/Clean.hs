@@ -1,6 +1,15 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass, TypeFamilies, TupleSections #-}
 {-# LANGUAGE PatternSynonyms #-}
-module GB.Util.Clean (NetList, listify, showNL,
+module GB.Util.Clean (NetList, listify, listifyWith, showNL,
+                      Gate(..), Binop(..), SR,
+                      pattern GAnd, pattern GNand,
+                      pattern GOr, pattern GNor,
+                      pattern GXor, pattern GIff,
+                      pattern GImpl, pattern GNimpl,
+                      pattern Mux, pattern MuxNS,
+                      pattern MuxSN, pattern MuxN,
+                      pattern High, pattern Low,
+                      pattern Id, pattern Not,
                       Fixable, SingleVar, ListVar,
                       singleVar, listVar) where
 import GB.Lava.VhdlNew (writeVhdlInputOutputNoClk)
@@ -152,19 +161,27 @@ showNL :: NetList -> String
 listify :: (Fixable a, Fixable b, Generic (Fixup a), Generic (Fixup b)) =>
            String -> (Fixup a -> Fixup b) -> a -> b -> NetList
 
+listifyWith :: (Fixable a, Fixable b, Generic (Fixup a), Generic (Fixup b)) =>
+            [IM.IntMap Gate -> Maybe (IM.IntMap Gate)] -> String ->
+            (Fixup a -> Fixup b) -> a -> b -> NetList
+
 newtype NL g = NL { getNL :: ([(String, [g])], IM.IntMap Int Gate) }
   deriving (NFData, Show)
 
-cleanUp :: NL Gate -> NL Gate
+cleanUp :: [NL Gate -> Maybe (NL Gate)] -> NL Gate -> NL Gate
 readNetList :: [(String, Int)] -> [String] -> NL Gate
 
-listify name f a b = uncurry (NetList name (sigs a)) $ getNL $ force $
-                     cleanUp $ readNetList (sigs b) $
-                     unsafePerformIO $
-                     withSystemTempFile (name ++ ".vhd") $ \fn h -> do
-  hClose h
-  (writeVhdlInputOutputNoClk (reverse $ drop 4 $ reverse fn) f `on` fixup) a b
-  force <$> readFile fn
+listifyWith x name f a b =
+  uncurry (NetList name (sigs a)) $ getNL $ force $
+  cleanUp (map (((fmap NL . sequenceA) .) . (. getNL) . second) x) $
+  readNetList (sigs b) $ unsafePerformIO $
+  withSystemTempFile (name ++ ".vhd") $
+  \fn h -> do
+    hClose h
+    on (writeVhdlInputOutputNoClk (reverse $ drop 4 $ reverse fn) f) fixup a b
+    force <$> readFile fn
+
+listify = listifyWith []
 
 iterateUntilDone :: (a -> Maybe a) -> a -> a
 iterateUntilDone = fix . (. flip maybe) . flip ap
@@ -177,7 +194,10 @@ which = flip . flip if'
 
 strategies :: [NL Gate -> Maybe (NL Gate)]
 
-cleanUp = iterateUntilDone (force . msum . flip (map . (&)) strategies)
+handleOutputs :: NL Gate -> NL Gate
+
+cleanUp x = handleOutputs .
+  iterateUntilDone (force . msum . flip (map . (&)) (strategies ++ x))
 
 handleLines :: [(String, Int)] -> [String] -> NL Gate
 type HLState = (M.Map String [(Int, Gate)], IM.IntMap Gate)
@@ -222,7 +242,7 @@ readNetList b =
   dropWhile (not . isPrefixOf "begin") . lines
 
 strategies = [simplifyGates, removeUnused, mergeCommonNots, mergeConsts,
-              mergeNotsPre, removeNotsAndWires, handleOutputs]
+              mergeNotsPre, removeNotsAndWires]
 
 parallelSimp :: (Traversable t) => (a -> Maybe a) -> t a -> Maybe (t a)
 
@@ -414,6 +434,13 @@ correctConsts = (boolToMaybe .) . crcns . foo where
 mergeConsts x@(NS (_, int)) =
   parallelSimp (correctConsts $ (IM.!?) $ gatherConsts int) x
 
-handleOutputs = undefined
-
+handleOutputs x@(NS (out, int)) = NS (oFix, iFix) where
+  cnts = counts x
+  (toRem, Compose (Compose (Compose oFix))) = traverse fixGate $
+    Compose $ Compose $ Compose out
+  fixGate (GUnop b (Nothing, i))
+    | counts IM.! i == 1 = (IS.singleton i, int IM.! i)
+  fixGate x = (IS.empty, x)
+  iFix = int `IM.withoutKeys` toRem
+    
 -- TODO: simplification algorithm, writing.

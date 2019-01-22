@@ -128,16 +128,24 @@ mmux (s:ss) as = mmux ss $
 
 -- Note that these only work with actual signals.
 -- Note: Rising edge.
-register :: Signal Bool -> Signal Bool -> Signal Bool ->
-            [Signal Bool] -> [Signal Bool]
+registerz :: Signal Bool -> Signal Bool -> Signal Bool ->
+             [Signal Bool] -> [Signal Bool]
 -- clock write zero data
-registerAW :: Signal Bool -> Signal Bool -> [Signal Bool] -> [Signal Bool]
+registerAWz :: Signal Bool -> Signal Bool -> [Signal Bool] -> [Signal Bool]
 -- clock zero data
 
 srff :: Signal Bool -> Signal Bool -> Signal Bool
 srff s r = fst $ fix $ \(q, q') -> (q' |!| r, q |!| s)
-dff :: Signal Bool -> Signal Bool -> Signal Bool -> Signal Bool
-dff z w d = srff (w &&& d &&& neg z) (w &&& neg d ||| z)
+dffz :: Signal Bool -> Signal Bool -> Signal Bool -> Signal Bool
+dffz z w d = srff (w &&& d &&& neg z) (w &&& neg d ||| z)
 
-register c w z = map (dff z c . dff z (neg c &&& w))
-registerAW c z = map (dff z c . dff z (neg c))
+dff :: Signal Bool -> Signal Bool -> Signal Bool
+dff w d = srff (w &&& d) (w &&& neg d)
+
+registerz c w z = map (dffz z (c &&& w) . dffz z (neg c &&& w))
+registerAWz c z = map (dffz z c . dffz z (neg c))
+
+register :: Signal Bool -> Signal Bool -> [Signal Bool] -> [Signal Bool]
+registerAW :: Signal Bool -> [Signal Bool] -> [Signal Bool]
+register c w = map (dff (c &&& w) . dff (neg c &&& w))
+registerAW c = map (dff c . dff (neg c))

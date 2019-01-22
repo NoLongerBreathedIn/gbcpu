@@ -104,10 +104,10 @@ sixteenRegSimple :: Signal Bool -> Signal Bool -> Signal Bool ->
                     Signal Bool -> Signal Bool -> [Signal Bool] ->
                     [Either Bool (Signal Bool)] ->
                     ([Signal Bool], [Signal Bool])
-sixteenRegSimple setH setL setA ck rs s8 sa =
-  (register ck (setH ||| setA) rs $
+sixteenRegSimple setH setL setA ck rs s8 sa b =
+  (registerz ck (setH ||| setA) rs $
     zipWith ((. Right) . (wrapPlain .) . muxb setH) h s8,
-   register ck (setL ||| setA) rs $
+   registerz ck (setL ||| setA) rs $
    zipWith ((. Right) . (wrapPlain .) . muxb setL) l s8) where
   (h, l) = splitAt 8 sa
   
@@ -136,33 +136,33 @@ registers set ck rs = CPURegisters a b c d e f h l ip sp
   sixteenset = ensureLength 9 $ sixteens set
   b16 = ensureLength 16 $ sixteenBus set
   idec = ensureLength 16 $ sixteenID set
-  initEights = map (flip (register ck) rs `flip` eightsrc) $ eightset
+  initEights = map (flip (register ck) `flip` eightsrc) $ eightset
   a = initEights !! 7
   b = initEights !! 0
   c = initEights !! 1
   d = initEights !! 2
   e = initEights !! 3
-  f = registerAW ck rs $ ensureLength 5 $ newF set
+  f = registerAW ck $ ensureLength 5 $ newF set
   (h, l) = sixteenReg (eightset !! 4) (eightset !! 5) (sixteenset !! 1)
-           (sixteenset !! 2) ck rs eightsrc idec b16
+           (sixteenset !! 2) ck high eightsrc idec b16
   ip = uncurry (++) $
     sixteenRegSP (eightset !! 8) (eightset !! 9) (sixteenset !! 7)
     (sixteenset !! 8) ck rs eightsrc idec b16 $ map Right rj
   sp = uncurry (++) $
     sixteenReg (eightset !! 14) (eightset !! 15) (sixteenset !! 3)
-    (sixteenset !! 4) ck rs eightsrc idec b16
+    (sixteenset !! 4) ck high eightsrc idec b16
   ma = uncurry (++) $
        sixteenRegSP (eightset !! 12) (eightset !! 13) (sixteenset !! 5)
-       (sixteenset !! 6) ck rs eightsrc idec b16 $
+       (sixteenset !! 6) ck high eightsrc idec b16 $
        (replicate 8 $ Left True) ++ map Right c
   mw = initEights !! 6
   rj = uncurry (++) $ sixteenRegSimple (eightset !! 10) (eightset !! 11)
-       (sixteenset !! 0) ck rs eightsrc $
+       (sixteenset !! 0) ck high eightsrc $
        (replicate 8 $ Left True) ++
        map Right (ensureLength 4 $ sixteenOther set) ++
        (replicate 3 $ Left True)
-  [ien] = register ck (pie ||| clearIE set) rs [neg $ clearIE set]
-  [pie, wm] = registerAW ck rs [setpIE set, screwy set]
+  [ien] = registerz ck (pie ||| clearIE set) rs [neg $ clearIE set]
+  [pie, wm] = registerAWz ck rs [setpIE set, screwy set]
 
 
 ensureLength :: Int -> [a] -> [a]
