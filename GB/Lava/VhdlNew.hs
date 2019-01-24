@@ -39,7 +39,6 @@ import Data.IORef
 --  , writeIORef
 --  )
 
-import System.Cmd (system)
 import System.Exit (ExitCode(..))
 
 --import System
@@ -148,7 +147,7 @@ writeDefinitions clocked file name inp out out' =
               hPutStr firstHandle ("  signal " ++ v ++ " : std_logic;\n")
               return v
 
-         defXor a t x@[_, _] = define a (Or x y) >> define t (And x y)
+         defXor a t x@[_, _] = define a (Or x) >> define t (And x)
          defXor a t (x:ys@[_,_]) = do
            [a0, t0, w0] <- sequence $ replicate 3 new
            defXor a0 t0 ys
@@ -195,7 +194,7 @@ writeDefinitions clocked file name inp out out' =
              Xor  [x,y]    -> port "xorG" v [x,y]
              Xor  xs       -> do [a, t, nt] <- sequence $ replicate 3 new
                                  defXor a t xs
-                                 define nt $ Inv x
+                                 define nt $ Inv t
                                  define v $ And [a, nt]
                
 

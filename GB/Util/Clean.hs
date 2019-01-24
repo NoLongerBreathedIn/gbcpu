@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass, TypeFamilies, TupleSections #-}
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE PatternSynonyms, FlexibleContexts #-}
 module GB.Util.Clean (NetList, listify, listifyWith, showNL,
                       Gate(..), Binop(..), SR,
                       pattern GAnd, pattern GNand,
@@ -12,68 +12,76 @@ module GB.Util.Clean (NetList, listify, listifyWith, showNL,
                       pattern Id, pattern Not,
                       Fixable, SingleVar, ListVar,
                       singleVar, listVar) where
-import GB.Lava.VhdlNew (writeVhdlInputOutputNoClk)
-import Lava
+import GB.Util.Base
+import GB.Lava.VhdlNew as GBL
+import Lava hiding (Generic)
+import qualified Lava.Generic as LG
 import Control.DeepSeq
 import Control.Monad.State
 import System.IO.Temp
+import System.IO.Unsafe
+import System.IO
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
 import Data.Functor
 import Control.Applicative
-import Data.Monoid
+import Data.Monoid hiding (Product, Sum)
 import Data.Traversable
 import Data.Foldable
-import Control.Arrow ((***))
+import Control.Arrow
 import Control.Monad
 import Data.Function
 import Data.Array
+import Data.List
 import Data.Functor.Compose
 import Data.Functor.Product
 import Data.Maybe hiding (mapMaybe)
 import qualified Data.Set as S
 import qualified Data.IntSet as IS
+import GHC.Generics
+import Data.Tuple
 
 data NetList = NetList { name :: String,
                          inputs :: [(String, Int)],
                          outputs :: [(String, [Gate])],
-                         gates :: IM.IntMap Gate } deriving (NFData, Show)
+                         gates :: IM.IntMap Gate }
+             deriving (Generic, NFData, Show)
 
 newtype SingleVar = Var {unVar :: String}
 newtype ListVar = VarList {unVarList :: (String, Int)}
 
 singleVar :: String -> SingleVar
 singleVar = Var
-listVar :: Int -> String -> VarList
+listVar :: Int -> String -> ListVar
 listVar = flip (curry VarList)
 
 type SR = (Maybe String, Int)
 
 data Binop = BAnd | BOr | BXor | BImpl
-  deriving (Eq, NFData)
+           deriving (Eq, Generic, NFData, Show)
 
 data Gate = GConst Bool
           | GUnop Bool SR
           | GBinop Bool Binop SR SR -- negafter
           | GMux Bool Bool SR SR SR -- neg d0, neg d1, s, d0, d1,
-          deriving (Eq, NFData)
+          deriving (Eq, Generic, NFData, Show)
 
-pattern GAnd = GBinop False BAnd
-pattern GOr = GBinop False BOr
-pattern GNand = GBinop True BAnd
-pattern GNor = GBinop True BOr
-pattern GXor = GBinop False BXor
-pattern GIff = GBinop True BXor
-pattern GImpl = GBinop False BImpl
-pattern GNimpl = GBinop True BImpl
-pattern Mux = GMux False False
-pattern MuxNS = GMux True False
-pattern MuxSN = GMux False True
-pattern MuxN = GMux True True
+pattern GAnd   x y = GBinop False BAnd  x y
+pattern GOr    x y = GBinop False BOr   x y
+pattern GNand  x y = GBinop True  BAnd  x y
+pattern GNor   x y = GBinop True  BOr   x y
+pattern GXor   x y = GBinop False BXor  x y
+pattern GIff   x y = GBinop True  BXor  x y
+pattern GImpl  x y = GBinop False BImpl x y
+pattern GNimpl x y = GBinop True  BImpl x y
+pattern Mux   s d0 d1 = GMux False False s d0 d1
+pattern MuxNS s d0 d1 = GMux True  False s d0 d1
+pattern MuxSN s d0 d1 = GMux False True  s d0 d1
+pattern MuxN  s d0 d1 = GMux True  True  s d0 d1
 pattern High = GConst True
-pattern Low = GConst False
-pattern Id = GUnop False
-pattern Not = GUnop True
+pattern Low  = GConst False
+pattern Id  x = GUnop False x
+pattern Not x = GUnop True  x
 
 {-# COMPLETE High, Low, GUnop, GMux, GBinop #-}
 {-# COMPLETE GConst, Id, Not, GMux, GBinop #-}
@@ -158,18 +166,20 @@ instance (Fixable a, Fixable b, Fixable c,
     sigs a ++ sigs b ++ sigs c ++ sigs d ++ sigs e ++ sigs f ++ sigs g
 
 showNL :: NetList -> String
-listify :: (Fixable a, Fixable b, Generic (Fixup a), Generic (Fixup b)) =>
+listify :: (Fixable a, Fixable b,
+            LG.Generic (Fixup a), LG.Generic (Fixup b)) =>
            String -> (Fixup a -> Fixup b) -> a -> b -> NetList
 
-listifyWith :: (Fixable a, Fixable b, Generic (Fixup a), Generic (Fixup b)) =>
+listifyWith :: (Fixable a, Fixable b,
+                LG.Generic (Fixup a), LG.Generic (Fixup b)) =>
             [IM.IntMap Gate -> Maybe (IM.IntMap Gate)] -> String ->
             (Fixup a -> Fixup b) -> a -> b -> NetList
 
-newtype NL g = NL { getNL :: ([(String, [g])], IM.IntMap Int Gate) }
-  deriving (NFData, Show)
+newtype NL g = NL { getNL :: ([(String, [g])], IM.IntMap g) }
+  deriving (Generic, NFData, Show)
 
 cleanUp :: [NL Gate -> Maybe (NL Gate)] -> NL Gate -> NL Gate
-readNetList :: [(String, Int)] -> [String] -> NL Gate
+readNetList :: [(String, Int)] -> String -> NL Gate
 
 listifyWith x name f a b =
   uncurry (NetList name (sigs a)) $ getNL $ force $
@@ -178,7 +188,8 @@ listifyWith x name f a b =
   withSystemTempFile (name ++ ".vhd") $
   \fn h -> do
     hClose h
-    on (writeVhdlInputOutputNoClk (reverse $ drop 4 $ reverse fn) f) fixup a b
+    GBL.writeVhdlInputOutputNoClk (reverse $ drop 4 $ reverse fn) f
+      (fixup a) (fixup b)
     force <$> readFile fn
 
 listify = listifyWith []
@@ -204,36 +215,37 @@ type HLState = (M.Map String [(Int, Gate)], IM.IntMap Gate)
 handleLine :: [String] -> State HLState ()
 
 handleLines b = hlsToNetList b .
-                       flip execState (initHLS b) .
-                       sequence_ . map (handleLine . words) . init
+                flip execState (initHLS b) .
+                sequence_ . map (handleLine . words) . init
 
 initHLS :: [(String, Int)] -> HLState
 hlsToNetList :: [(String, Int)] -> HLState -> NL Gate
 
 decodePort :: String -> SR
-decodePort 'w':s = (Nothing, read s)
-decodePort ss = (Just *** read . tail) splitAt brk ss where
+decodePort ('w':s) = (Nothing, read s)
+decodePort ss = (Just *** read . tail) $ splitAt brk ss where
   brk = last $ elemIndices '_' ss
 
 initHLS = (, IM.empty) . M.fromList . map ((, []) . fst)
 hlsToNetList = (NL .) .
-  flip (first . (. (uncurry . (((elems .) . flip (array . (0,) . (-1 +))) .) .
-                    (M.!))) . flip map)
+  first . (. (uncurry . liftM2 (.) (,) .
+              (((elems .) . flip (array . (0,) . (-1 +))) .) . (M.!))) .
+  flip map
 
-handleLine (_:_:etype:_:_:pts) = modify' $ uncurry .
-                                 maybe (second . flip IM.insert gate)
-                                 ((first .) . flip (M.adjust . ((, gate):))) $
-                                 last ports where
-  ports = map decodePort pts
-  gate = case drop 5 etype of
-    "vdd" -> High
-    "gnd" -> Low
-    "wire" -> Id $ ports !! 0
-    "invG" -> GNot $ ports !! 0
-    "andG" -> GAnd (ports !! 0) (ports !! 1)
-    "orG" -> GOr (ports !! 0) (ports !! 1)
-    "xorG" -> GXor (ports !! 0) (ports !! 1)
-    "mux2" -> Mux (ports !! 0) (ports !! 1) (ports !! 2)
+handleLine (_:_:etype:_:_:pts) =
+  modify' $ uncurry (maybe (second . flip IM.insert gate) $
+                     (first .) . flip (M.adjust . (:) . (, gate))) $
+  last ports
+  where ports = map decodePort pts
+        gate = case drop 5 etype of
+          "vdd" -> High
+          "gnd" -> Low
+          "wire" -> Id $ ports !! 0
+          "invG" -> Not $ ports !! 0
+          "andG" -> GAnd (ports !! 0) (ports !! 1)
+          "orG" -> GOr (ports !! 0) (ports !! 1)
+          "xorG" -> GXor (ports !! 0) (ports !! 1)
+          "mux2" -> Mux (ports !! 0) (ports !! 1) (ports !! 2)
 
 handleLine _ = return ()
 
@@ -249,9 +261,9 @@ parallelSimp :: (Traversable t) => (a -> Maybe a) -> t a -> Maybe (t a)
 parallelSimp = (uncurry (which Just (const Nothing) . getAny) .) .
   traverse . ap (flip maybe (Any True,) . (mempty,))
 
-nlToWhatsit = pairUp . first (Compose . Compose . Compose) . getNL
+nlToWhatsit = pairUp . first (Compose . Compose) . getNL
 
-whatsitToNL = NL . first (getCompose . getCompose . getCompose) . unpair
+whatsitToNL = NL . first (getCompose . getCompose) . unpair
 
 instance Functor NL where
   fmap f = whatsitToNL . fmap f . nlToWhatsit
@@ -287,12 +299,13 @@ removeUnused (NL (out, int)) =
   if IM.null removed then Nothing else Just $ NL (out, retained) where
     retained = IM.restrictKeys int used
     removed = IM.withoutKeys int used
-    used = repeatUntilNoChange (foldMap $ foldMap justNumbers . wires) $
-           foldMap (foldMap justNumbers . wires) out
+    used = repeatUntilNoChange
+      (foldMap (foldMap justNumbers . wires) . IM.restrictKeys int) $
+      foldMap (foldMap (foldMap justNumbers . wires) . snd) out
 
 
 repeatUntilNoChange :: Eq a => (a -> a) -> a -> a
-repeatUntilNoChange f x = if x == x' then x else repeatUntilNoChange x' where
+repeatUntilNoChange f x = if x == x' then x else repeatUntilNoChange f x' where
   x' = f x
 
 wires :: Gate -> [SR]
@@ -308,7 +321,7 @@ boolToMaybe :: (Any, b) -> Maybe b
 boolToMaybe = uncurry $ which Just (const Nothing) . getAny
   
 replaceWires :: (SR -> Maybe SR) -> Gate -> Maybe Gate
-replaceWires = (boolToMaybe .) . replWires . (maybeToBool .) where
+replaceWires = (boolToMaybe .) . replWires . ap maybeToBool where
   replWires f (GUnop t x) = GUnop t <$> f x
   replWires f (GBinop a b x y) = GBinop a b <$> f x <*> f y
   replWires f (GMux a b s x y) = GMux a b <$> f s <*> f x <*> f y
@@ -330,13 +343,13 @@ keepOnlyNots = IM.mapMaybe (uncurry $ flip $ which Just (const Nothing))
 flipNots :: IM.IntMap SR -> M.Map SR Int
 flipNots = IM.foldMapWithKey $ flip M.singleton
 
-canonMap :: IM.IntMap a -> M.Map b Int -> b -> Maybe a
-canonMap o i = (o IM.!?) <=< (i IM.!?)
+canonMap :: (Ord b) => IM.IntMap a -> M.Map b Int -> b -> Maybe a
+canonMap o i = (o IM.!?) <=< (i M.!?)
 
 canonicalizeNot :: IM.IntMap SR -> M.Map SR Int -> SR -> Maybe SR
 canonicalizeNot c f a = do ac <- canonMap c f a
                            when (a == ac) Nothing
-                           ac
+                           Just ac
 
 mergeCommonNots x@(NL (_, int)) =
   parallelSimp (replaceWires $ canonicalizeNot c f) x where
@@ -344,18 +357,18 @@ mergeCommonNots x@(NL (_, int)) =
   f = flipNots c
 
 counts :: Foldable t => t Gate -> IM.IntMap Int
-counts = foldr (unionWith (+)) $ foldr (unionWith (+)) $ cnt . wires where
-  cnt = uncurry $ maybe (flip IM.singleton 1) (const $ const IM.empty)
+counts = flip appEndo IM.empty . foldMap (foldMap (Endo . cnt) . wires) where
+  cnt = uncurry $ maybe (flip (IM.insertWith (+)) 1) (const $ const id)
 
 findMergeableNots :: NL Gate -> IM.IntMap Int
 findMergeableNots x@(NL (_, int)) = IM.filter (inOnce $ counts x) $ 
   IM.mapMaybe isInt $ keepOnlyNots $ gatherUnopsInt int where
-  inOnce = ((== 1) .) . flip IM.findWithDefault 0
-  isInt = uncurry $ maybe id (const $ const Nothing)
+  inOnce = ((== 1) .) . flip (IM.findWithDefault 0)
+  isInt = uncurry $ maybe Just (const $ const Nothing)
 
 notOutsAndIns :: IM.IntMap Int -> IS.IntSet
 notOutsAndIns m = (k IS.\\ v) `IS.union` (v IS.\\ k) where
-  k = keys m
+  k = IM.keysSet m
   v = IS.fromList $ IM.elems m
   
 mergeNotAfterInto :: Gate -> Gate
@@ -366,10 +379,10 @@ mergeNotAfterInto g = case g of
   GMux f0 f1 s d0 d1 -> on GMux not f0 f1 s d0 d1
 
 mergeNotsPre x =
-  if null mns then Nothing
-  else Just $ second (flip (foldl' $ flip $
-                            adjust mergeNotAfterInto) mns) x where
-    mns = notOutsAndIns $ findMergableNots x
+  if IS.null mns then Nothing
+  else Just $ NL $ second (flip (IS.foldr $ IM.adjust mergeNotAfterInto) mns) $
+       getNL x where
+    mns = notOutsAndIns $ findMergeableNots x
 
 checkRes :: IM.IntMap (SR, Bool) -> SR -> Maybe (SR, Bool)
 checkRes m x = do when (isJust $ fst x) Nothing
@@ -391,13 +404,13 @@ handleNotsAndWires = (boolToMaybe .) . hnw . ap (maybeToBool . (, False)) where
   hbo br BXor (x, bx) (y, by) = GBinop ((br /= bx) /= by) BXor x y
   han = which (which (which GOr  $ flip GImpl)  (which GImpl  GNand))
               (which (which GNor $ flip GNimpl) (which GNimpl GAnd))
-  hmx f0 f1 (s, bs) db0, db1 =
-    let ((d0, b0) (d1, b1)) = if' bs swap id (second (/= f0) db0,
-                                              second (/= f1) db1) in
+  hmx f0 f1 (s, bs) db0 db1 =
+    let ((d0, b0), (d1, b1)) = if' bs swap id (second (/= f0) db0,
+                                               second (/= f1) db1) in
       GMux b0 b1 s d0 d1
 
-removeNotsAndWires x@(NS (_, int)) =
-  parallelSimp (handleNotsAndWires $ checkRes $ gatherUnops int) x
+removeNotsAndWires x@(NL (_, int)) =
+  parallelSimp (handleNotsAndWires $ checkRes $ gatherUnopsInt int) x
 
 gatherConsts :: IM.IntMap Gate -> IM.IntMap Bool
 gatherConsts = IM.mapMaybe justConsts where
@@ -406,14 +419,15 @@ gatherConsts = IM.mapMaybe justConsts where
 
 correctConsts :: (Int -> Maybe Bool) -> Gate -> Maybe Gate
 correctConsts = (boolToMaybe .) . crcns . foo where
-  foo f x = maybeToBool (Right x) $ fmap Left $ uncurry $
-    maybe f (const $ const Nothing)
+  foo = liftA2 maybeToBool Right . (fmap Left .) . uncurry .
+    flip maybe (const $ const Nothing)
+  crcns :: (SR -> (Any, Either Bool SR)) -> Gate -> (Any, Gate)
   crcns f (GUnop b x) = huo b <$> f x
-  crcns f (GBinop b o x y) = hbo b <$> f x <*> f y
+  crcns f (GBinop b o x y) = hbo b o <$> f x <*> f y
   crcns f (GMux f0 f1 s d0 d1) = hmx f0 f1 <$> f s <*> f d0 <*> f d1
   crcns _ x = pure x
   huo b = either (GConst . (b /=)) (GUnop b)
-  hbo b o = either (either <$> evbo b o <*> lbo b o)
+  hbo b o = either (either <$> (GConst .) . evbo b o <*> lbo b o)
                    (either <$> rbo b o <*> GBinop b o)
   evbo b BAnd = ((b /=) .) . (&&)
   evbo b BOr = ((b /=) .) . (||)
@@ -430,24 +444,24 @@ correctConsts = (boolToMaybe .) . crcns . foo where
   hmx f0 f1 q@(Right s) = either (sth q f1 . (f0 /=))
     (either <$> flip (sthe q f0 . (f1 /=)) <*> GMux f0 f1 s)
   sth q b c = hbo b (if b == c then BAnd else BImpl) q
-  sthe q b c = flip (hbo c $ if b /= c then BOr else BImpl) q
-mergeConsts x@(NS (_, int)) =
+  sthe q b c = flip (hbo c $ if b /= c then BOr else BImpl) q . Right
+mergeConsts x@(NL (_, int)) =
   parallelSimp (correctConsts $ (IM.!?) $ gatherConsts int) x
 
-handleOutputs x@(NS (out, int)) = NS (oFix, iFix) where
+handleOutputs x@(NL (out, int)) = NL (oFix, iFix) where
   cnts = counts x
-  (toRem, Compose (Compose (Compose oFix))) = traverse fixGate $
-    Compose $ Compose $ Compose out
+  (toRem, Compose (Compose oFix)) = traverse fixGate $
+    Compose $ Compose out
   fixGate (GUnop b (Nothing, i))
-    | counts IM.! i == 1 = (IS.singleton i,
-                            (if' b mergeNotAfterInto id) $ int IM.! i)
+    | cnts IM.! i == 1 = (IS.singleton i,
+                           (if' b mergeNotAfterInto id) $ int IM.! i)
   fixGate x = (IS.empty, x)
   iFix = int `IM.withoutKeys` toRem
 
 showPort :: String -> (String, Int) -> String
 showSignal :: Int -> String
 dumpComponent :: (SR, Gate) -> String
-dumpFancy :: (String, [Gate]) -> String
+dumpFancy :: (String, [Gate]) -> [String]
 
 showNL (NetList n i o g) = unlines $
   unwords ["entity", n, "is"]:thePorts ++
@@ -460,7 +474,7 @@ showNL (NetList n i o g) = unlines $
   where
     thePorts = "  port (": map (showPort "in") i ++
       map (showPort "out" . second length) (init o) ++
-      [(++");") ++ init $ showPort "out" $ second length $ last o,
+      [(++");") $ init $ showPort "out" $ second length $ last o,
        "end;",
        ""]
 
@@ -470,7 +484,7 @@ showPort ty (n, l) = "    " ++ unwords [n, ":", ty, "bit"] ++
                      else ";"
 showSignal = ('v':) . show
 
-dumpFancy (n, gs) = zipWith (dumpComponent . (,) . (n,))
+dumpFancy (n, gs) = zipWith (curry dumpComponent . (Just n,))
                     (iterate (-1+) $ length gs - 1) gs
 
 showSR :: SR -> String

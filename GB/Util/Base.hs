@@ -25,13 +25,12 @@ class Signalish s where
   mux2 :: s -> s -> s -> s
   
 instance Signalish Bool where
-  (^^^) True = not
-  (^^^) False = id
+  (^^^) = (/=)
   (&&&) = (&&)
   (|||) = (||)
   (&!&) = (||) `on` not
   (|!|) = (&&) `on` not
-  (^!^) = (^^^) . not
+  (^!^) = (==)
   (!||) = (||) . not
   neg = not
   fromBool = id
