@@ -1,16 +1,16 @@
 module GB.CPU (cpuChunk) where
-import Lava hiding (neg)
+import GB.Lava.Signal hiding (neg)
 import GB.Util.Base
-import GB.Util.Clean
+import GB.Util.NetList
 
-data CPUOutputs = CPUOutputs { progCounter :: [Signal Bool],
-                               memoryAccess :: [Signal Bool],
-                               memoryByte :: [Signal Bool],
-                               write :: Signal Bool,
-                               inHalt :: Signal Bool,
-                               inStop :: Signal Bool } deriving (Eq, Show)
+data CPUOutputs = CPUOutputs { progCounter :: [Signal],
+                               memoryAccess :: [Signal],
+                               memoryByte :: [Signal],
+                               write :: Signal,
+                               inHalt :: Signal,
+                               inStop :: Signal } deriving (Eq, Show)
 
-fullCPU :: CPUInputs (Signal Bool) -> Signal Bool -> Signal Bool -> CPUOutputs
+fullCPU :: CPUInputs (Signal) -> Signal -> Signal -> CPUOutputs
 -- inputs clock zero
 
 fullCPU inp ck rs = CPUOutputs (pc regOut) (memA regOut) (memW regOut)
@@ -27,16 +27,16 @@ fullCPU inp ck rs = CPUOutputs (pc regOut) (memA regOut) (memW regOut)
   interrupted = inter p
   regC = registers (decode mi inp regC) ck rs
 
-fullCPUParens :: (([Signal Bool], [Signal Bool], Signal Bool, [Signal Bool]),
-                  (Signal Bool, Signal Bool)) ->
-                 ([Signal Bool], [Signal Bool], [Signal Bool],
-                  Signal Bool, Signal Bool, Signal Bool)
+fullCPUParens :: (([Signal], [Signal], Signal, [Signal]),
+                  (Signal, Signal)) ->
+                 ([Signal], [Signal], [Signal],
+                  Signal, Signal, Signal)
 
-inputFutz :: ([Signal Bool], [Signal Bool], Signal Bool, [Signal Bool]) ->
-             CPUInputs (Signal Bool)
+inputFutz :: ([Signal], [Signal], Signal, [Signal]) ->
+             CPUInputs (Signal)
 
-outputFutz :: CPUOutputs -> ([Signal Bool], [Signal Bool], [Signal Bool],
-                             Signal Bool, Signal Bool, Signal Bool)
+outputFutz :: CPUOutputs -> ([Signal], [Signal], [Signal],
+                             Signal, Signal, Signal)
 
 inputFutz (a, b, c, d) = CPUInputs a b c d
 outputFutz (CPUOutputs a b c d e f) = (a, b, c, d, e, f)
@@ -44,10 +44,10 @@ outputFutz (CPUOutputs a b c d e f) = (a, b, c, d, e, f)
 fullCPUParens = outputFutz . uncurry (uncurry . f . inputFutz)
 
 cpuChunk :: NetList
-cpuChunk = listify "lr35902" fullCPUParens
-           ((listVar 8 "instr", listVar 8 "memR",
-              singleVar "irq", listVar 3 "ivec"),
-             (Var "clock", singleVar "reset"))
-           (listVar 16 "pc", listVar 16 "memA", listVar 16 "memW",
-            singleVar "wt", singleVar "halted", singleVar "stopped")
+cpuChunk = listify fullCPUParens
+           ((("instr", 8), ("memR", 8),
+              "irq", ("ivec", 3)),
+             ("clock", "reset"))
+           (("pc", 16), ("memA", 16), ("memW", 8),
+            "wt", "halted", "stopped")
            

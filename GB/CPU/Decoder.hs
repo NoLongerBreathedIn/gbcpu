@@ -11,7 +11,7 @@ module GB.CPU.Decoder (decode,
                        RegisterSet,
                        CPURegisters(fIE, fpIE)) where
 
-import Lava hiding (neg)
+import GB.Lava.Signal
 import GB.CPU.Alu
 import GB.Util.Base
 import Data.Array
@@ -96,14 +96,14 @@ decode :: (Signalish a) => MicroInstruction a -> CPUInputs a ->
           CPURegisters a -> RegisterSet a
 -- g (current output of ALU), set state
 
-registers :: RegisterSet (Signal Bool) -> Signal Bool -> Signal Bool ->
-             CPURegisters (Signal Bool)
+registers :: RegisterSet Signal -> Signal -> Signal ->
+             CPURegisters Signal
 -- clock, then reset.
 
-sixteenRegSimple :: Signal Bool -> Signal Bool -> Signal Bool ->
-                    Signal Bool -> Signal Bool -> [Signal Bool] ->
-                    [Either Bool (Signal Bool)] ->
-                    ([Signal Bool], [Signal Bool])
+sixteenRegSimple :: Signal Bool -> Signal -> Signal ->
+                    Signal -> Signal -> [Signal] ->
+                    [Either Bool Signal] ->
+                    ([Signal], [Signal])
 sixteenRegSimple setH setL setA ck rs s8 sa b =
   (registerz ck (setH ||| setA) rs $
     zipWith ((. Right) . (wrapPlain .) . muxb setH) h s8,
@@ -112,18 +112,18 @@ sixteenRegSimple setH setL setA ck rs s8 sa b =
   (h, l) = splitAt 8 sa
   
 
-sixteenReg :: Signal Bool -> Signal Bool -> Signal Bool -> Signal Bool ->
-              Signal Bool -> Signal Bool -> [Signal Bool] -> [Signal Bool] ->
-              [Signal Bool] -> ([Signal Bool], [Signal Bool])
+sixteenReg :: Signal -> Signal -> Signal -> Signal ->
+              Signal -> Signal -> [Signal] -> [Signal] ->
+              [Signal] -> ([Signal], [Signal])
 
 sixteenReg setH setL setA wh ck rs s8 s0 s1 =
   sixteenRegSimple setH setL setA ck rs s8 $
   zipWith ((Right .) . mux2 wh) s0 s1
 
-sixteenRegSP :: Signal Bool -> Signal Bool -> Signal Bool -> Signal Bool ->
-                Signal Bool -> Signal Bool -> [Signal Bool] -> [Signal Bool] ->
-                [Signal Bool] -> [Either Bool (Signal Bool)] ->
-                ([Signal Bool], [Signal Bool])
+sixteenRegSP :: Signal -> Signal -> Signal -> Signal ->
+                Signal -> Signal -> [Signal] -> [Signal] ->
+                [Signal] -> [Either Bool (Signal)] ->
+                ([Signal], [Signal])
 
 sixteenRegSP setH setL setA setB ck rs s8 s2 s3 s1 =
   sixteenRegSimple setH setL (setA ||| setB) ck rs s8 $

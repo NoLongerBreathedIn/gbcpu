@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 module GB.Util.Base where
 
-import Lava hiding (neg)
+import GB.Lava.Signal
 import Data.List (foldl')
 import Control.Arrow (first)
 import Control.Monad (join)
@@ -37,7 +37,7 @@ instance Signalish Bool where
   huh = True
   mux2 = flip . if'
   
-instance Signalish (Signal Bool) where
+instance Signalish (Signal a) where
   (^^^) = curry xor2
   (&&&) = curry and2
   (|||) = curry or2
@@ -48,7 +48,7 @@ instance Signalish (Signal Bool) where
   neg = inv
   fromBool = bool
   huh = fromBool True
-  mux2 = flip . lift3 If
+  mux2 = mux
 
 infixl 7 &&&
 infixl 5 |||

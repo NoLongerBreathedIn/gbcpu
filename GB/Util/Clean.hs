@@ -1,6 +1,9 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass, TypeFamilies, TupleSections #-}
 {-# LANGUAGE PatternSynonyms, FlexibleContexts #-}
-module GB.Util.Clean (NetList, listify, listifyWith, showNL,
+
+
+-- TODO: Rework to just be cleaning.
+module GB.Util.Clean (NetList(..), listify, listifyWith, showNL,
                       Gate(..), Binop(..), SR,
                       pattern GAnd, pattern GNand,
                       pattern GOr, pattern GNor,
@@ -41,8 +44,7 @@ import qualified Data.IntSet as IS
 import GHC.Generics
 import Data.Tuple
 
-data NetList = NetList { name :: String,
-                         inputs :: [(String, Int)],
+data NetList = NetList { inputs :: [(String, Int)],
                          outputs :: [(String, [Gate])],
                          gates :: IM.IntMap Gate }
              deriving (Generic, NFData, Show)
@@ -165,14 +167,14 @@ instance (Fixable a, Fixable b, Fixable c,
   sigs (a, b, c, d, e, f, g) =
     sigs a ++ sigs b ++ sigs c ++ sigs d ++ sigs e ++ sigs f ++ sigs g
 
-showNL :: NetList -> String
+showNL :: NetList -> String -> String
 listify :: (Fixable a, Fixable b,
             LG.Generic (Fixup a), LG.Generic (Fixup b)) =>
-           String -> (Fixup a -> Fixup b) -> a -> b -> NetList
+           (Fixup a -> Fixup b) -> a -> b -> NetList
 
 listifyWith :: (Fixable a, Fixable b,
                 LG.Generic (Fixup a), LG.Generic (Fixup b)) =>
-            [IM.IntMap Gate -> Maybe (IM.IntMap Gate)] -> String ->
+            [IM.IntMap Gate -> Maybe (IM.IntMap Gate)] ->
             (Fixup a -> Fixup b) -> a -> b -> NetList
 
 newtype NL g = NL { getNL :: ([(String, [g])], IM.IntMap g) }
@@ -181,8 +183,8 @@ newtype NL g = NL { getNL :: ([(String, [g])], IM.IntMap g) }
 cleanUp :: [NL Gate -> Maybe (NL Gate)] -> NL Gate -> NL Gate
 readNetList :: [(String, Int)] -> String -> NL Gate
 
-listifyWith x name f a b =
-  uncurry (NetList name (sigs a)) $ getNL $ force $
+listifyWith x f a b =
+  uncurry (NetList $ sigs a) $ getNL $ force $
   cleanUp (map (((fmap NL . sequenceA) .) . (. getNL) . second) x) $
   readNetList (sigs b) $ unsafePerformIO $
   withSystemTempFile (name ++ ".vhd") $
@@ -463,7 +465,7 @@ showSignal :: Int -> String
 dumpComponent :: (SR, Gate) -> String
 dumpFancy :: (String, [Gate]) -> [String]
 
-showNL (NetList n i o g) = unlines $
+showNL (NetList i o g) n = unlines $
   unwords ["entity", n, "is"]:thePorts ++
   unwords ["component", n]:thePorts ++
   unwords ["architecture structural of", n, "is"]:
