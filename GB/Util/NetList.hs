@@ -15,7 +15,8 @@ module GB.Util.NetList (NetList(..), listify, showNL,
                         addSignal, addInput, addOutput, setOutput,
                         incorporate, compress, verify, nlEmpty,
                         nlUnop, nlBinop, nlConst, nlMux,
-                        nlDelay, nlDelayZ, nlDff, nlDffZ) where
+                        nlDelay, nlDelayZ, nlDff, nlDffZ,
+                        countTransistors) where
 import GB.Util.Base
 import GB.Lava.Signal
 import GB.Lava.Netlist
@@ -129,6 +130,8 @@ nlDelayZ :: Int -> Bool -> Bool -> Bool -> Bool -> NetList -- inputs: c, z, d
 nlDff :: Int -> Bool -> Bool -> Bool -> NetList -- inputs: c, w, d
 nlDffZ :: Int -> Bool -> Bool -> Bool -> Bool -> Bool -> NetList
 -- inputs: c, w, z, d
+
+countTransistors :: NetList -> Int
 
 wires :: Gate -> [SR]
 wires g = case g of
@@ -362,3 +365,15 @@ nlDff = nlDel "w" GDff
 nlDffZ n fc fq fw fz fd =
   standard n [("c", 1), ("w", 1), ("z", 1), ("d", n)] "q" $
   GDffZ fc fq fw fz fd (mkSR "c" 0) (mkSR "w" 0) (mkSR "z" 0) . mkSR "d"
+
+countTransistors = getSum . foldMap (Sum . countTrans) . gates where
+  countTrans (GConst _) = 0
+  countTrans (GUnop False _) = 0
+  countTrans (GUnop True _) = 0
+  countTrans (GBinop _ BXor _ _) = 8
+  countTrans (GBinop _ _ _ _) = 4
+  countTrans (GMux _ _ _ _ _) = 8
+  countTrans (GDelay _ _ _ _) = 16 -- q = !!i, i = c? d : q (wired)
+  countTrans (GDelayZ _ _ _ _ _ _ _) = 20
+  countTrans (GDff _ _ _ _ _ _) = 20
+  countTrans (GDffZ _ _ _ _ _ _ _ _) = 24
