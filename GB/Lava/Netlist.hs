@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, TupleSlices #-}
+{-# LANGUAGE TypeFamilies, TupleSlices, FlexibleInstances #-}
 module GB.Lava.Netlist (LavaGen, netlist, sigs) where
 
 import GB.Lava.Signal

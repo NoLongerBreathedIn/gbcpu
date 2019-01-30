@@ -37,7 +37,7 @@ instance Signalish Bool where
   huh = True
   mux2 = flip . if'
   
-instance Signalish (Signal a) where
+instance Signalish Signal where
   (^^^) = curry xor2
   (&&&) = curry and2
   (|||) = curry or2
@@ -127,24 +127,15 @@ mmux (s:ss) as = mmux ss $
 
 -- Note that these only work with actual signals.
 -- Note: Rising edge.
-registerz :: Signal Bool -> Signal Bool -> Signal Bool ->
-             [Signal Bool] -> [Signal Bool]
--- clock write zero data
-registerAWz :: Signal Bool -> Signal Bool -> [Signal Bool] -> [Signal Bool]
--- clock zero data
+registerz :: Signal -> Signal -> Signal -> Signal -> [Signal] -> [Signal]
+-- clocko clocki write zero data
+registerAWz :: Signal -> Signal -> Signal -> [Signal] -> [Signal]
+-- clocko clocki zero data
 
-srff :: Signal Bool -> Signal Bool -> Signal Bool
-srff s r = fst $ fix $ \(q, q') -> (q' |!| r, q |!| s)
-dffz :: Signal Bool -> Signal Bool -> Signal Bool -> Signal Bool
-dffz z w d = srff (w &&& d &&& neg z) (w &&& neg d ||| z)
+registerz = (. (&&&)) . (.) . registerAWz
+registerAWz = map . liftA2 (.) `on` dffZ
 
-dff :: Signal Bool -> Signal Bool -> Signal Bool
-dff w d = srff (w &&& d) (w &&& neg d)
-
-registerz c w z = map (dffz z (c &&& w) . dffz z (neg c &&& w))
-registerAWz c z = map (dffz z c . dffz z (neg c))
-
-register :: Signal Bool -> Signal Bool -> [Signal Bool] -> [Signal Bool]
-registerAW :: Signal Bool -> [Signal Bool] -> [Signal Bool]
-register c w = map (dff (c &&& w) . dff (neg c &&& w))
-registerAW c = map (dff c . dff (neg c))
+register :: Signal -> Signal -> Signal -> [Signal] -> [Signal]
+registerAW :: Signal -> Signal -> [Signal] -> [Signal]
+register = (. (&&&)) . (.) . registerAW
+registerAW = (map .) . (.) `on` dff

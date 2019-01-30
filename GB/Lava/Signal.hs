@@ -18,10 +18,8 @@ data Sig a = Bool Bool
            | Or a a
            | Xor a a
            | Var String Int
-           | Delay a a -- clock value
-           | DelayZ a a a
-           | DelayW a a a -- clock write value
-           | DelayWZ a a a a
+           | Dff a a -- write value
+           | DffZ a a a -- write zero value
            | Mux a a a
            deriving (Functor, Show)
 newtype Signal = Signal { getSignal :: Sig Signal }
@@ -51,9 +49,9 @@ bool :: Bool -> Signal
 low, high :: Signal
 inv :: Signal -> Signal
 and2, or2, xor2, impl, nand2, nor2, xnor2 :: (Signal, Signal) -> Signal
-mux, dff, delayZ :: Signal -> Signal -> Signal -> Signal
-delay :: Signal -> Signal -> Signal
-dffZ :: Signal -> Signal -> Signal -> Signal -> Signal
+mux :: Signal -> Signal -> Signal -> Signal
+dff :: Signal -> Signal -> Signal
+dffZ :: Signal -> Signal -> Signal -> Signal
 var :: String -> Signal
 varPosn :: (String, Int) -> Signal
 
@@ -73,9 +71,7 @@ nand2 = inv . and2
 nor2 = inv . nor2
 xnor2 = inv . xor2
 mux = ((Signal .) .) . Mux
-delay = (Signal .) . Delay
-dff = ((Signal .) .) . DelayW
-delayZ = ((Signal .) .) . DelayZ
-dffZ = (((Signal .) .) .) . DelayWZ
+dff = (Signal .) . Dff
+dffZ = ((Signal .) .) . DffZ
 var = Signal . flip Var 0
 varPosn = Signal . uncurry Var

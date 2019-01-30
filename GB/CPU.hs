@@ -10,8 +10,8 @@ data CPUOutputs = CPUOutputs { progCounter :: [Signal],
                                inHalt :: Signal,
                                inStop :: Signal } deriving (Eq, Show)
 
-fullCPU :: CPUInputs (Signal) -> Signal -> Signal -> CPUOutputs
--- inputs clock zero
+fullCPU :: CPUInputs (Signal) -> Signal -> Signal -> Signal -> CPUOutputs
+-- inputs clocko clocki reset
 
 fullCPU inp ck rs = CPUOutputs (pc regOut) (memA regOut) (memW regOut)
                     (miscFlags mi !! 4)
@@ -41,13 +41,13 @@ outputFutz :: CPUOutputs -> ([Signal], [Signal], [Signal],
 inputFutz (a, b, c, d) = CPUInputs a b c d
 outputFutz (CPUOutputs a b c d e f) = (a, b, c, d, e, f)
 
-fullCPUParens = outputFutz . uncurry (uncurry . f . inputFutz)
+fullCPUParens = outputFutz . uncurry (uncurry . uncurry . fullCPU . inputFutz)
 
 cpuChunk :: NetList
 cpuChunk = listify fullCPUParens
            ((("instr", 8), ("memR", 8),
               "irq", ("ivec", 3)),
-             ("clock", "reset"))
+             (("clocko", "clocki"), "reset"))
            (("pc", 16), ("memA", 16), ("memW", 8),
             "wt", "halted", "stopped")
            
