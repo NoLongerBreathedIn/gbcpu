@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE LambdaCase #-}
 module Main where
 import GB.Util.Symbolic
 import GB.Util.Base
@@ -60,9 +61,9 @@ data TestCase = TestCase {testName :: String,
                           testBM :: String}
                 deriving (Show)
 namesOfSymbs :: [Symb a] -> [a]
-namesOfSymbs = mapMaybe (\s -> case s of
-                                 Symb a -> Just a
-                                 _ -> Nothing)
+namesOfSymbs = mapMaybe (\case
+                            Symb a -> Just a
+                            _ -> Nothing)
 
 instance FromJSON (Symb Char) where
   parseJSON (String s) = return $ decode $ unpack s
@@ -135,7 +136,7 @@ flattenmi (MicroInstruction a b c d e f g h i j k) =
 
 check a b c f s = ck s (f a) (f b) c
 
-ck s x y c = ((s,) <$> msum r, maybe True (const False) <$> r)
+ck s x y c = ((s,) <$> msum r, isNothing <$> r)
   where r = zipWith (findIneqWhen c) (x ++ repeat Unknown) y
 
 countTests :: TestCase -> Integer
@@ -152,13 +153,13 @@ test tc@(TestCase name state inst ifl cnd mi ns bm) =
         bt = foldl' (flip ((+) . ifElse 0 1 . (== Unknown))) 0 $
           a ++ flattenmi c
         sf = countPoss bm $ cnd' &&& ors nonm
-        nonm = (zipWith nonMatch a b) ++ flattenmi (liftA2 nonMatch c d)
+        nonm = zipWith nonMatch a b ++ flattenmi (liftA2 nonMatch c d)
         st = countPoss bm cnd'
-        sbf = sum $ (countPoss bm . (cnd' &&&)) <$> nonm
+        sbf = sum $ countPoss bm . (cnd' &&&) <$> nonm
         sbt = bt * st
 
 bmt :: Int
-bmt = length $ uncurry (++) $ second flattenmi $ encoded
+bmt = length $ uncurry (++) $ second flattenmi encoded
 
 trueList :: [Bool]
 trueList = replicate bmt True
@@ -176,30 +177,34 @@ runTest fname = decodeFileEither fname >>= do
     let tt = sum tcs
     let cf = toInteger $ length tfs
     let tf = sum $ toInteger . length . snd <$> tfs
-    when (not (null tfs)) $ putStrLn $ "In '" ++ fname ++ "':"
-    forM tfs $ \(caseName, testFails) -> do
+    unless (null tfs) $ putStrLn $ "In '" ++ fname ++ "':"
+    forM_ tfs $ \(caseName, testFails) -> do
       putStrLn $ "\tTest case '" ++ caseName ++ "':"
-      forM testFails $ \(testName, reasons) -> do
+      forM_ testFails $ \(testName, reasons) -> do
         putStrLn $ "\t\tTest '" ++ testName ++ "' fails"
-        when (not $ null reasons) $ do
+        unless (null reasons) $ do
           putStr "\t\t\t(when all of '"
           let rTrue = fst <$> filter snd reasons
           let rFalse = fst <$> filter (not . snd) reasons
-          when (not $ null rTrue) $ do
+          unless (null rTrue) $ do
             putStr $ rTrue ++ "' are true"
-            when (not $ null rFalse) $ putStr " and all of '"
-          when (not $ null rFalse) $ putStr $ rFalse ++ "' are false"
+            unless (null rFalse) $ putStr " and all of '"
+          unless (null rFalse) $ putStr $ rFalse ++ "' are false"
           putStrLn ")"
-    when (not $ null tfs) $ putStrLn ""
+    unless (null tfs) $ putStrLn ""
     let bs = length $ filter id bf
     let [(sf, st), (gf, gt)] = sb
     putStrLn $ "\nTotals for '" ++ fname ++ "':"
-    putStrLn $ "Test cases passed: " ++ show (ct - cf) ++ '/' : show ct
-    putStrLn $ "Tests passed: " ++ show (tt - tf) ++ '/' : show tt
-    putStrLn $ "Bits passed: " ++ show bs ++ '/' : show bmt
-    putStrLn $ "Scenarios passed: " ++ show (st - sf) ++ '/' : show st
-    putStrLn $ "Total non-failures: " ++ show (gt - gf) ++ '/' : show gt
+    printTotals ct cf tt tf bs bmt st sf gt gf
     return $ Just ((cf, ct):(tf,tt):sb, bf)
+
+printTotals ct cf tt tf bs bmt st sf gt gf = do
+  putStrLn $ " Test cases passed: " ++ show (ct - cf) ++ '/' : show ct
+  putStrLn $ " Tests passed: " ++ show (tt - tf) ++ '/' : show tt
+  putStrLn $ " Bits passed: " ++ show bs ++ '/' : show bmt
+  putStrLn $ " Scenarios passed: " ++ show (st - sf) ++ '/' : show st
+  putStrLn $ " Total non-failures: " ++ show (gt - gf) ++ '/' : show gt
+
 
 both2 :: (a -> b -> c) -> (a, a) -> (b, b) -> (c, c)
 both2 = (uncurry (***) .) . join (***)
@@ -220,10 +225,6 @@ main = do
     show (totCount - readCount) ++ " file" ++
     (if readCount == totCount - 1 then "" else "s") ++
     " unreadable (" ++ show totCount ++ " total)"
-  when (totCount > 1 && readCount /= 0) $ do
-    putStrLn $ "Totals:"
-    putStrLn $ "Test cases passed: " ++ show (ct - cf) ++ '/' : show ct
-    putStrLn $ "Tests passed: " ++ show (tt - tf) ++ '/' : show tt
-    putStrLn $ "Bits passed: " ++ show bs ++ '/' : show bmt
-    putStrLn $ "Scenarios passed: " ++ show (st - sf) ++ '/' : show st
-    putStrLn $ "Total non-failures: " ++ show (gt - gf) ++ '/' : show gt
+  when (totCot > 1 && readCount /= 0) $ do
+    putStrLn "Totals:"
+    printTotals ct cf tt tf bs bmt st sf gt gf

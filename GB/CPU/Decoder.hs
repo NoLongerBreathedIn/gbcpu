@@ -122,7 +122,7 @@ sixteenReg setH setL setA wh co ci rs s8 s0 s1 =
 
 sixteenRegSP :: Signal -> Signal -> Signal -> Signal -> Signal ->
                 Signal -> Signal -> [Signal] -> [Signal] ->
-                [Signal] -> [Either Bool (Signal)] ->
+                [Signal] -> [Either Bool Signal] ->
                 ([Signal], [Signal])
 
 sixteenRegSP setH setL setA setB co ci rs s8 s2 s3 s1 =
@@ -136,7 +136,7 @@ registers set co ci rs = CPURegisters a b c d e f h l ip sp
   sixteenset = ensureLength 9 $ sixteens set
   b16 = ensureLength 16 $ sixteenBus set
   idec = ensureLength 16 $ sixteenID set
-  initEights = map (flip (register ck) `flip` eightsrc) $ eightset
+  initEights = map (flip (register ck) `flip` eightsrc) eightset
   a = initEights !! 7
   b = initEights !! 0
   c = initEights !! 1
@@ -154,13 +154,13 @@ registers set co ci rs = CPURegisters a b c d e f h l ip sp
   ma = uncurry (++) $
        sixteenRegSP (eightset !! 12) (eightset !! 13) (sixteenset !! 5)
        (sixteenset !! 6) co ci high eightsrc idec b16 $
-       (replicate 8 $ Left True) ++ map Right c
+       replicate 8 (Left True) ++ map Right c
   mw = initEights !! 6
   rj = uncurry (++) $ sixteenRegSimple (eightset !! 10) (eightset !! 11)
-       (sixteenset !! 0) co ci high eightsrc $
-       (replicate 8 $ Left True) ++
+       (head sixteenset) co ci high eightsrc $
+       replicate 8 (Left True) ++
        map Right (ensureLength 4 $ sixteenOther set) ++
-       (replicate 3 $ Left True)
+       replicate 3 (Left True)
   [ien] = registerz co ci (pie ||| clearIE set) rs [neg $ clearIE set]
   [pie, wm] = registerAWz co ci rs [setpIE set, screwy set]
 
@@ -199,7 +199,7 @@ decode mi inp st = RegisterSet eset sset aluo b16 id16 o16
   ralub = ralu //
     [(11, map Just [Left False, Right daah, Right daah, Left False,
                     Left False, Right daal, Right daal, Left False]),
-     (12, map Just $ (map Right $ tail $ regF st) ++ replicate 4 (Left False)),
+     (12, map Just $ map Right (tail $ regF st) ++ replicate 4 (Left False)),
      (13, replicate 8 Nothing)]
   alur = mmuxc (aluR mi) $ elems ralub
   interrupted = inter inp &&& fIE st

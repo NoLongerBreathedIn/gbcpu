@@ -69,12 +69,12 @@ assign _ (Inj x) = fromBool x
 assign _ Unknown = huh
 assign f (Symb a) = f a
 
-get_first :: Symb a -> Maybe a
-get_first (Xor x y) = get_first x <|> get_first y
-get_first (And x y) = get_first x <|> get_first y
-get_first (Not x) = get_first x
-get_first (Inj _) = Nothing
-get_first (Symb a) = Just a
+getFirst :: Symb a -> Maybe a
+getFirst (Xor x y) = getFirst x <|> getFirst y
+getFirst (And x y) = getFirst x <|> getFirst y
+getFirst (Not x) = getFirst x
+getFirst (Inj _) = Nothing
+getFirst (Symb a) = Just a
 
 findIneq :: (Eq a) => Symb a -> Symb a -> Maybe [(a, Bool)]
 
@@ -83,14 +83,14 @@ findIneq x y = findIneqH x y []
 findIneqH Unknown _ _ = Nothing
 findIneqH _ Unknown _ = Nothing
 
-findIneqH x y l = case get_first x <|> get_first y of
+findIneqH x y l = case getFirst x <|> getFirst y of
   Nothing -> if x == y then Nothing else Just l
   Just a -> (findIneqH `on` assign (repl a False)) x y ((a,False):l) <|>
             (findIneqH `on` assign (repl a True)) x y ((a,True):l)
 
 equivalent :: (Eq a) => Symb a -> Symb a -> Bool
 
-equivalent x y = maybe True (const False) $ findIneq x y
+equivalent x y = isNothing $ findIneq x y
 
 on3 :: (a -> a -> a -> b) -> (c -> a) -> (c -> c -> c -> b)
 on3 f g = (`on` g) . f . g
@@ -108,14 +108,14 @@ fiwh Unknown x y l = findIneqH x y l
 fiwh c x y l =
   if equivalent c (Inj True)
   then findIneqH x y l
-  else findIneq c (Inj False) >> case get_first x <|> get_first y of
+  else findIneq c (Inj False) >> case getFirst x <|> getFirst y of
     Nothing -> if x == y then Nothing else Just l
     Just a -> (fiwh `on3` assign (repl a False)) c x y ((a, False):l) <|>
               (fiwh `on3` assign (repl a True)) c x y ((a, True):l)
 
 equivalentWhen :: (Eq a) => Symb a -> Symb a -> Symb a -> Bool
 
-equivalentWhen c x y = maybe True (const False) $ findIneqWhen c x y
+equivalentWhen c x y = isNothing $ findIneqWhen c x y
 
 repl :: (Eq a) => a -> Bool -> a -> Symb a
 repl a x b = if a == b then Inj x else Symb b
@@ -135,7 +135,7 @@ which a _ True = a
 which _ a False = a
 
 multi :: State a (Maybe b) -> State a [b]
-multi = fix . (. (maybe (return ([])) . (. (:)) . flip fmap)) . (>>=)
+multi = fix . (. (maybe (return []) . (. (:)) . flip fmap)) . (>>=)
   
 
 decTok = do
@@ -167,7 +167,7 @@ countPoss _ Unknown = error "Hey, tried to count unknown!"
 countPoss l x
   | equivalent x (Inj True) = 2 ^ length l
   | equivalent x (Inj False) = 0
-  | otherwise = cp (get_first x) l x
+  | otherwise = cp (getFirst x) l x
 
 cp :: (Eq a) => Maybe a -> [a] -> Symb a -> Integer
 

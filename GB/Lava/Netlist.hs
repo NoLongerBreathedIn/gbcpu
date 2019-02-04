@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, TupleSlices, FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies, TupleSections, FlexibleInstances #-}
 module GB.Lava.Netlist (LavaGen, netlist, sigs) where
 
 import GB.Lava.Signal
@@ -26,21 +26,21 @@ get :: Graph Sig -> Sig Int
 get (Graph g i) = fromJust $ lookup i g
 
 instance LavaGen String where
-  Fixup String = Signal
+  type Fixup String = Signal
   struct _ = id
   fixup = var
   sigs = (:[]) . (, 1)
   destruct (Graph _ i) n = [((n, 0), i)]
 
 instance LavaGen () where
-  Fixup () = ()
+  type Fixup () = ()
   struct _ _ = high
   fixup _ = ()
   sigs _ = []
   destruct _ _ = []
 
 instance LavaGen (String, Int) where
-  Fixup (String, Int) = [Signal]
+  type Fixup (String, Int) = [Signal]
   struct _ = foldr (curry and2) high
   fixup = map varPosn . sigs
   sigs (n, i) = (n,) <$> [i - 1, i - 2 .. 0]
@@ -51,7 +51,7 @@ instance LavaGen (String, Int) where
       And x y -> (x, y)
 
 instance LavaGen a => LavaGen [a] where
-  Fixup [a] = [Fixup a]
+  type Fixup [a] = [Fixup a]
   struct = (foldr (curry and2) high .) . zipWith struct
   fixup = map fixup
   sigs = concatMap sigs
@@ -62,7 +62,7 @@ instance LavaGen a => LavaGen [a] where
       And x y -> (x, y)
 
 instance (LavaGen a, LavaGen b) => LavaGen (a, b) where
-  Fixup (a, b) = (Fixup a, Fixup b)
+  type Fixup (a, b) = (Fixup a, Fixup b)
   struct (a, b) (c, d) = and2 (struct a c, struct b d)
   fixup = fixup *** fixup
   sigs (a, b) = sigs a ++ sigs b
@@ -84,7 +84,7 @@ foo7 (a, b, c, d, e, f, g) = (a, (b, c, d, e, f, g))
 
 
 instance (LavaGen a, LavaGen b, LavaGen c) => LavaGen (a, b, c) where
-  Fixup (a, b, c) = (Fixup a, Fixup b, Fixup c)
+  type Fixup (a, b, c) = (Fixup a, Fixup b, Fixup c)
   struct = (. foo3) . struct . foo3
   fixup (a, b, c) = (fixup a, fixup b, fixup c)
   sigs = sigs . foo3
@@ -92,7 +92,7 @@ instance (LavaGen a, LavaGen b, LavaGen c) => LavaGen (a, b, c) where
 
 instance (LavaGen a, LavaGen b, LavaGen c, LavaGen d) =>
          LavaGen (a, b, c, d) where
-  Fixup (a, b, c, d) = (Fixup a, Fixup b, Fixup c, Fixup d)
+  type Fixup (a, b, c, d) = (Fixup a, Fixup b, Fixup c, Fixup d)
   struct = (. foo4) . struct . foo4
   fixup (a, b, c, d) = (fixup a, fixup b, fixup c, fixup d)
   sigs = sigs . foo4
@@ -100,7 +100,7 @@ instance (LavaGen a, LavaGen b, LavaGen c, LavaGen d) =>
 
 instance (LavaGen a, LavaGen b, LavaGen c, LavaGen d, LavaGen e) =>
          LavaGen (a, b, c, d, e) where
-  Fixup (a, b, c, d, e) = (Fixup a, Fixup b, Fixup c, Fixup d, Fixup e)
+  type Fixup (a, b, c, d, e) = (Fixup a, Fixup b, Fixup c, Fixup d, Fixup e)
   struct = (. foo5) . struct . foo5
   fixup (a, b, c, d, e) = (fixup a, fixup b, fixup c, fixup d, fixup e)
   sigs = sigs . foo5
@@ -108,8 +108,8 @@ instance (LavaGen a, LavaGen b, LavaGen c, LavaGen d, LavaGen e) =>
 
 instance (LavaGen a, LavaGen b, LavaGen c, LavaGen d, LavaGen e, LavaGen f) =>
          LavaGen (a, b, c, d, e, f) where
-  Fixup (a, b, c, d, e, f) = (Fixup a, Fixup b, Fixup c,
-                              Fixup d, Fixup e, Fixup f)
+  type Fixup (a, b, c, d, e, f) = (Fixup a, Fixup b, Fixup c,
+                                   Fixup d, Fixup e, Fixup f)
   struct = (. foo6) . struct . foo6
   fixup (a, b, c, d, e, f) = (fixup a, fixup b, fixup c,
                               fixup d, fixup e, fixup f)
@@ -119,8 +119,8 @@ instance (LavaGen a, LavaGen b, LavaGen c, LavaGen d, LavaGen e, LavaGen f) =>
 instance (LavaGen a, LavaGen b, LavaGen c, LavaGen d,
           LavaGen e, LavaGen f, LavaGen g) =>
          LavaGen (a, b, c, d, e, f, g) where
-  Fixup (a, b, c, d, e, f, g) = (Fixup a, Fixup b, Fixup c,
-                                 Fixup d, Fixup e, Fixup f, Fixup g)
+  type Fixup (a, b, c, d, e, f, g) = (Fixup a, Fixup b, Fixup c,
+                                      Fixup d, Fixup e, Fixup f, Fixup g)
   struct = (. foo7) . struct . foo7
   fixup (a, b, c, d, e, f, g) = (fixup a, fixup b, fixup c,
                                  fixup d, fixup e, fixup f, fixup g)

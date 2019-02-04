@@ -13,10 +13,10 @@ module GB.Util.NetList (NetList(..), listify, showNL,
                         pattern High, pattern Low,
                         pattern Id, pattern Not,
                         addSignal, addInput, addOutput, setOutput,
+                        setOutputs, removeSignals,
                         incorporate, compress, verify, nlEmpty,
                         nlUnop, nlBinop, nlConst, nlMux, nlDff, nlDffZ,
-                        countTransistors, wires, hmDff,
-                        hmDffZ, hmUnop, hmBinop, hmMux) where
+                        countTransistors, wires) where
 import GB.Util.Base
 import GB.Lava.Signal
 import GB.Lava.Netlist
@@ -36,7 +36,6 @@ import Control.Monad
 import Data.Function
 import Data.Maybe
 import GHC.Generics
-import Control.Monad.State
 import Control.DeepSeq
 
 data NetList = NetList { inputs :: [(String, Int)],
@@ -49,7 +48,7 @@ data NetList = NetList { inputs :: [(String, Int)],
 type SR = (Maybe String, Int)
 type NLP = (Either String Int, Int)
 
-vdata Binop = BAnd | BOr | BXor | BImpl
+data Binop = BAnd | BOr | BXor | BImpl
            deriving (Eq, Generic, NFData, Show)
 
 data Gate = GConst Bool
@@ -57,8 +56,7 @@ data Gate = GConst Bool
           | GBinop Bool Binop SR SR -- negafter
           | GMux Bool Bool SR SR SR -- neg d0, neg d1, s, d0, d1
           | GDff Bool SR SR -- write, data
-          | GDffZ Bool Bool Bool SR SR SR
-          -- write, async, data
+          | GDffZ Bool Bool Bool SR SR SR -- write, async, data
           -- neg write, z al/ah, z rs/set
           deriving (Eq, Generic, NFData, Show)
 
@@ -105,6 +103,7 @@ addInput :: String -> Int -> NetList -> NetList
 addOutput :: String -> Int -> NetList -> NetList
 -- name, length. Added at start.
 setOutput :: String -> Int -> NLP -> Bool -> NetList -> NetList
+setOutputs :: Map String (IntMap (NLP, Bool)) -> NetList -> NetList
 incorporate :: (String -> [Maybe NLP]) -> NetList -> NetList -> NetList
 -- Port map, part, whole.
 -- Part should have no missing pieces.
@@ -126,15 +125,9 @@ nlDff :: Int -> Bool -> NetList -- inputs: c, w, d
 nlDffZ :: Int -> Bool -> Bool -> Bool -> NetList
 -- inputs: fw, fz, zs
 
+removeSignals :: NetList -> NetList
+
 countTransistors :: NetList -> Int
-
-type SRB = (SR, Bool)
-
-hmDff ::  Bool -> SRB -> SRB -> (Gate, Bool)
-hmDffZ :: Bool -> Bool -> Bool -> SRB -> SRB -> SRB -> (Gate, Bool)
-hmUnop :: Bool -> SRB -> Gate
-hmBinop :: Bool -> Binop -> SRB -> SRB -> Gate
-hmMux :: Bool -> Bool -> SRB -> SRB -> SRB -> Gate
 
 wires :: Gate -> [SR]
 wires g = case g of
@@ -145,16 +138,20 @@ wires g = case g of
   GDff _ w d -> [w, d]
   GDffZ _ _ _ w z d -> [w, z, d]
 
-detOuts :: [((String, Int), Int)] -> [(String, Int)] -> [(String, [Gate])]
+detOuts :: [((String, Int), Int)] -> [(String, Int)] ->
+           [(String, [(SR, Bool)])]
 detGates :: [(Int, Sig Int)] -> IntMap (Sig Int)
 
 listify f a b =
   NetList (sigs a) (detOuts outs $ sigs b) (detGates gates) IM.empty where
   (gates, outs) = netlist f a b
 
-detOuts = fmap . liftA2 (.) (,) .
-          (((. flip (enumFromTo . (-1+)) 0) . fmap) .) . (. (,)) .
-          (.) . ((Nothing,) .) . flip lookup
+droppingList :: Int -> [Int]
+droppingList i = [i-1, i-2 .. 0]
+
+detOuts = fmap . uncurry . liftA2 (.) (,) .
+          (((. droppingList) . fmap) .) .
+          (. (,)) . (.) . (((, False) . (Nothing,)) .) . (M.!) . M.fromList
 
 detGates = fmap detGate . IM.fromList where
   foo = (Nothing,)
@@ -170,7 +167,7 @@ detGates = fmap detGate . IM.fromList where
 showPort :: String -> (String, Int) -> String
 showSignal :: Int -> String
 dumpComponent :: (SR, Gate) -> String
-dumpFancy :: (String, [SRB]) -> [String]
+dumpFancy :: (String, [(SR, Bool)]) -> [String]
 
 showNL (NetList i o g _ _) n = unlines $
   unwords ["entity", n, "is"]:thePorts ++
@@ -199,7 +196,7 @@ showSRBlob :: SR -> String
 showSRBlob = uncurry $ maybe showSignal $ (. (('_':) . show)) . (++)
 showGateType :: Gate -> String
 
-dumpOneFancy :: String -> Int -> SRB -> String
+dumpOneFancy :: String -> Int -> (SR, Bool) -> String
 dumpFancy (n, g) = zipWith (dumpOneFancy n) [0..] $
                    reverse g
 dumpOneFancy sn si (t, z) =
@@ -242,7 +239,7 @@ addSignal n (NetList i o g s m) = (NetList i o g s' (m + n), sn)
         sn = maybe 0 ((+1) . fst) $ IM.lookupMin s
 
 nlpToSR :: (Int -> [Int]) -> NLS -> SR
-nlpToSR = uncurry . either ((,) . Just) . (((Nothing,) . (!!)) .)
+nlpToSR = uncurry . either ((,) . Just) . ((((Nothing,) .) . (!!)) .)
 
 addInput n l (NetList i o g s m) = NetList ((n,l):i) o g s m
 
@@ -259,31 +256,36 @@ setOutput n i s b x = x { outputs = foo (outputs x) } where
 on3 :: (b -> b -> b -> c) -> (a -> b) -> a -> a -> a -> c
 on3 = join . ((flip . (on .)) .) . (.)
 
-rewire :: (SR -> (SR, Bool)) -> Gate -> (Gate, Bool)
+rewire :: (SR -> SR) -> Gate -> Gate
 rewire _ x@(GConst _) = x
-rewire g (GUnop f x) = (, False) $ hmUnop f $ g x
-rewire g (GBinop f o x y) = (, False) (hmBinop f o `on` g x y)
-rewire g (GMux f0 f1 s d0 d1) = (, False) (hmMux f0 f1 `on3` g s d0 d1)
-rewire g (GDff fw w d) = hmDff fw `on` g w d
-rewire g (GDffZ fw fz zs w z d) = hmDffZ fw fz zs `on3` g w z d
+rewire g (GUnop f x) = GUnop f $ g x
+rewire g (GBinop f o x y) = GBinop f o `on` g x y
+rewire g (GMux f0 f1 s d0 d1) = GMux f0 f1 `on3` g s d0 d1
+rewire g (GDff fw w d) = GDff fw `on` g w d
+rewire g (GDffZ fw fz zs w z d) = GDffZ fw fz zs `on3` g w z d
+
+mapEither :: (a -> Either b c) -> [a] -> ([b], [c])
+mapEither = flip foldr ([], []) . (either (first . (:)) (second . (:)) .)
 
 incorporate f (NetList pi po pg _ pm) (NetList wi wo wg ws wm) =
   NetList wi wo' wg' ws wm' where
-  mapStr = fmap (nlpToSR (ws IM.!)) . f
-  po' = (fmap $ uncurry $
+  smap = (M.fromList (ap (,) (fmap (fmap $ nlpToSR (ws IM.!)) . f) . fst) M.!)
+  po' = second (fmap $ first $ uncurry $
          maybe ((Nothing,) . (+ wm))
-         ((fromJust .) . (!!) . mapStr)) <$> po
+         ((fromJust .) . (!!) . smap)) <$> po
   pg' = IM.mapKeysMonotonic (+ wm) $
-        (rewire $ uncurry $
+        rewire (uncurry $
          maybe ((Nothing,) . (+ wm))
-         ((fromJust .) . (!!) . mapStr)) <$> pg
-  mapStuff = M.fromList $
-    concatMap (catMaybes . uncurry ((fmap sequenceA .) .
-                                    flip zip . mapStr)) po'
-  oMap = flip ((, False) >>= M.findWithDefault) mapStuff
-  doMap = uncurry $ flip (second . (/=)) . oMap
-  wo' = second (fmap doMap) <$> wo
-  wg' = (rewire oMap <$> wg) <> pg'
+         ((fromJust .) . (!!) . smap)) <$> pg
+  (mapI, mapO) = mapEither (uncurry $ uncurry $ maybe ((Left .) . (,))
+                             ((((Right .) . (,)) .) . (,))) $
+    catMaybes . uncurry (zipWith (flip $ fmap . flip (,)) . smap) =<< po'
+  wg' = pg' <> foldl' (flip $ uncurry $ flip $
+                       flip IM.insert . uncurry (flip GUnop)) wg mapI
+  oMap = flip (flip . flip M.findWithDefault) $ M.fromList mapO
+  wo' = uncurry ((.) <$> (,) <*>
+                 ((reverse .) . (. reverse) .
+                  zipWith oMap . (<$> [0..]) . (,))) <$> wo
   wm' = wm + pm
 
 addMap :: Int -> Endo (Int, IntMap Int)
@@ -292,6 +294,8 @@ addMap i = Endo $ \(a, m) -> a `seq`
                              if i `IM.member` m
                              then (a, m)
                              else (a + 1, IM.insert i a m)
+
+removeSigmals (NetList i o g _ _) = compress $ NetList i o g IM.empty 0
 
 compress (NetList i o g s _) = NetList i o' g' s' m where
   theMaps = foldMap (foldMap doSR . snd) o <>
@@ -330,7 +334,7 @@ i2SR = (Nothing,)
 makeGateSet :: (Int -> Gate) -> Int -> IntMap Gate
 makeGateSet = (. (IS.fromAscList . enumFromTo 0 . (-1+))) . IM.fromSet
 outputsOf :: String -> Int -> [(String, [(SR, Bool)])]
-outputsOf s i = [(s, (, False) . i2SR <$> [n-1, n-2 .. 0])]
+outputsOf s i = [(s, (, False) . i2SR <$> droppingList i)]
 
 standard :: Int -> [(String, Int)] -> String -> (Int -> Gate) -> NetList
 
@@ -345,7 +349,7 @@ nlUnop n f = NetList {
   sigs = IM.empty,
   nGate = 0 }
 nlBinop n f o = standard n [("l", n), ("r", n)] "o" $
-                GBinop f o <$> mkSR "l" <*> mkSR "r",
+                GBinop f o <$> mkSR "l" <*> mkSR "r"
 nlConst = standard 1 [] "o" . const . GConst
 nlMux n f0 f1 = standard n [("s", 1), ("d0", n), ("d1", n)] "o" $
                 GMux f0 f1 (mkSR "s" 0) <$> mkSR "d0" <*> mkSR "d1"
@@ -387,22 +391,3 @@ countTransistorsI = getSum . foldMap (Sum . countTrans) . gates where
 --   t(!zs, x, !zs, y)
 --   t(fz, z, y, q)
 
-which :: a -> a -> Bool -> a
-which _ a False = a
-which a _ True = a
-
-hmDff fw (w, fw') (d, fd') = (GDff (fw /= fw') d, fd')
-hmDffZ fw fz zs (w, fw') (z, fz'), (d, fd') =
-  (GDffZ (fw /= fw') (fz /= fz') (zs /= fd') w z d, fd')
-hmUnop = uncurry . flip . (GUnop .) . (/=)
-hmBinop fo BAnd (l, fl) (r, fr) = hmAnd fl fr fo l r
-hmBinop fo BOr (l, fl) (r, fr) = hmAnd `on3` not fl fr fo l r
-hmBinop fo BImpl (l, fl) (r, fr) = hmAnd fl `on` not fr fo l r
-hmBinop fo BXor (l, fl) (r, fr) = GBinop (fo /= (fl /= fr)) BXor l r
-hmAnd False False = flip GBinop BAnd
-hmAnd True True = flip GBinop BOr . not
-hmAnd False True = flip GBinop BImpl . not
-hmAnd True False = flip . flip GBinop BImpl . not
-hmMux f0 f1 (s, True) = flip $ hmMux1 f1 f0 s
-hmMux f0 f1 (s, False) = hmMux1 f0 f1 s
-hmMux1 f0 f1 s (d0, f0') (d1, f1') = GMux (f0 /= f0') (f1 /= f1') s d0 d1

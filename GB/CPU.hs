@@ -10,7 +10,7 @@ data CPUOutputs = CPUOutputs { progCounter :: [Signal],
                                inHalt :: Signal,
                                inStop :: Signal } deriving (Eq, Show)
 
-fullCPU :: CPUInputs (Signal) -> Signal -> Signal -> Signal -> CPUOutputs
+fullCPU :: CPUInputs Signal -> Signal -> Signal -> Signal -> CPUOutputs
 -- inputs clocko clocki reset
 
 fullCPU inp ck rs = CPUOutputs (pc regOut) (memA regOut) (memW regOut)
@@ -33,7 +33,7 @@ fullCPUParens :: (([Signal], [Signal], Signal, [Signal]),
                   Signal, Signal, Signal)
 
 inputFutz :: ([Signal], [Signal], Signal, [Signal]) ->
-             CPUInputs (Signal)
+             CPUInputs Signal
 
 outputFutz :: CPUOutputs -> ([Signal], [Signal], [Signal],
                              Signal, Signal, Signal)
