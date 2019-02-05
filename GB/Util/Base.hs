@@ -5,6 +5,7 @@ import GB.Lava.Signal
 import Data.List (foldl')
 import Control.Arrow (first)
 import Control.Monad (join)
+import Control.Applicative
 import Data.Function (on, fix)
 
 if' :: Bool -> a -> a -> a
@@ -133,7 +134,7 @@ registerAWz :: Signal -> Signal -> Signal -> [Signal] -> [Signal]
 -- clocko clocki zero data
 
 registerz = (. (&&&)) . (.) . registerAWz
-registerAWz = map . liftA2 (.) `on` dffZ
+registerAWz = ((map .) .) . (liftA2 (.) `on` dffZ)
 
 register :: Signal -> Signal -> Signal -> [Signal] -> [Signal]
 registerAW :: Signal -> Signal -> [Signal] -> [Signal]

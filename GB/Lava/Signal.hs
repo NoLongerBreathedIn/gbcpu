@@ -1,10 +1,10 @@
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor, TypeFamilies #-}
 
 module GB.Lava.Signal (Signal, Sig(..),
                        bool, low, high,
                        inv, and2, or2, xor2,
                        impl, nand2, nor2, xnor2,
-                       mux, delay, dff, delayZ, dffZ,
+                       mux, dff, dffZ,
                        var, varPosn) where
 
 import Data.Reify
@@ -27,15 +27,13 @@ newtype Signal = Signal { getSignal :: Sig Signal }
 
 instance Traversable Sig where
   sequenceA s = case s of
-    x@(Bool _) -> pure x
+    Bool a -> pure $ Bool a
     And x y -> And <$> x <*> y
     Or x y -> Or <$> x <*> y
     Xor x y -> Xor <$> x <*> y
-    x@(Var _) -> pure x
-    Delay x y -> Delay <$> x <*> y
-    DelayW x y z -> DelayW <$> x <*> y <*> z
-    DelayZ x y z -> DelayZ <$> x <*> y <*> z
-    DelayWZ x y z w -> DelayWZ <$> x <*> y <*> z <*> w
+    Var a b -> pure $ Var a b
+    Dff x y -> Dff <$> x <*> y
+    DffZ x y z -> DffZ <$> x <*> y <*> z
     Mux x y z -> Mux <$> x <*> y <*> z
 
 instance Foldable Sig where
@@ -43,7 +41,7 @@ instance Foldable Sig where
 
 instance MuRef Signal where
   type DeRef Signal = Sig
-  mapDeRef = traverse
+  mapDeRef = (. getSignal) . traverse
 
 bool :: Bool -> Signal
 low, high :: Signal

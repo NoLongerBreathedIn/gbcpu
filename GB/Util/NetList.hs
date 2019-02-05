@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass, TupleSections #-}
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE PatternSynonyms, LambdaCase #-}
 
 -- TODO: Implement composition.
 module GB.Util.NetList (NetList(..), listify, showNL,
@@ -15,11 +15,14 @@ module GB.Util.NetList (NetList(..), listify, showNL,
                         addSignal, addInput, addOutput, setOutput,
                         setOutputs, removeSignals,
                         incorporate, compress, verify, nlEmpty,
-                        nlUnop, nlBinop, nlConst, nlMux, nlDff, nlDffZ,
-                        countTransistors, wires) where
+                        nlUnop, nlBinop, nlConst, nlMux, nlDff, nlDffZ, nlSR,
+                        countTransistors, wires,
+                        LavaGen, SingVar, ListVar, Fixup,
+                        varSing, varList) where
 import GB.Util.Base
 import GB.Lava.Signal
-import GB.Lava.Netlist
+import qualified GB.Lava.Netlist as LNL
+import GB.Lava.Netlist hiding (sigs)
 import Control.Monad.State
 import qualified Data.IntMap.Strict as IM
 import Data.IntMap.Strict (IntMap)
@@ -36,6 +39,7 @@ import Control.Monad
 import Data.Function
 import Data.Maybe
 import GHC.Generics
+import Data.List
 import Control.DeepSeq
 
 data NetList = NetList { inputs :: [(String, Int)],
@@ -51,13 +55,24 @@ type NLP = (Either String Int, Int)
 data Binop = BAnd | BOr | BXor | BImpl
            deriving (Eq, Generic, NFData, Show)
 
-data Gate = GConst Bool
-          | GUnop Bool SR
-          | GBinop Bool Binop SR SR -- negafter
-          | GMux Bool Bool SR SR SR -- neg d0, neg d1, s, d0, d1
-          | GDff Bool SR SR -- write, data
-          | GDffZ Bool Bool Bool SR SR SR -- write, async, data
-          -- neg write, z al/ah, z rs/set
+data Gate = GConst Bool -- f
+          -- o = f
+          | GUnop Bool SR -- f x
+          -- o = f ^ x
+          | GBinop Bool Binop SR SR -- f op l r
+          -- o = f ^ (l `op` r)
+          | GMux Bool Bool SR SR SR -- f0 f1 s d0 d1
+          -- o = s? f1 ^ d1 : f0 ^ d0
+          | GDff Bool SR SR -- fw w d
+          -- Set q to d if w /= fw.
+          -- Else no change.
+          | GDffZ Bool Bool Bool SR SR SR -- fw fz zs w z d
+          -- Set q to zs if z == fz.
+          -- Else behaves as GDff.
+          | GSR Bool Bool Bool SR SR -- fs fr fq s r
+          -- Set q to fq if r /= fr.
+          -- Else set q to !fq if s /= fs.
+          -- Else no change.
           deriving (Eq, Generic, NFData, Show)
 
 pattern GAnd   x y = GBinop False BAnd  x y
@@ -77,21 +92,21 @@ pattern Low  = GConst False
 pattern Id  x = GUnop False x
 pattern Not x = GUnop True  x
 
-{-# COMPLETE GDff, GDffZ, High, Low, GUnop, GMux, GBinop #-}
-{-# COMPLETE GDff, GDffZ, GConst, Id, Not, GMux, GBinop #-}
-{-# COMPLETE GDff, GDffZ, High, Low, Id, Not, GMux, GBinop #-}
-{-# COMPLETE GDff, GDffZ, GConst, GUnop, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
-{-# COMPLETE GDff, GDffZ, High, Low, GUnop, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
-{-# COMPLETE GDff, GDffZ, GConst, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
-{-# COMPLETE GDff, GDffZ, High, Low, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
-{-# COMPLETE GDff, GDffZ, GConst, GUnop, GMuxS, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GDff, GDffZ, High, Low, GUnop, GMuxS, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GDff, GDffZ, GConst, Id, Not, GMuxS, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GDff, GDffZ, High, Low, Id, Not, GMuxS, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GDff, GDffZ, GConst, GUnop, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GDff, GDffZ, High, Low, GUnop, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GDff, GDffZ, GConst, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GDff, GDffZ, High, Low, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GSR, GDff, GDffZ, High, Low, GUnop, GMux, GBinop #-}
+{-# COMPLETE GSR, GDff, GDffZ, GConst, Id, Not, GMux, GBinop #-}
+{-# COMPLETE GSR, GDff, GDffZ, High, Low, Id, Not, GMux, GBinop #-}
+{-# COMPLETE GSR, GDff, GDffZ, GConst, GUnop, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
+{-# COMPLETE GSR, GDff, GDffZ, High, Low, GUnop, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
+{-# COMPLETE GSR, GDff, GDffZ, GConst, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
+{-# COMPLETE GSR, GDff, GDffZ, High, Low, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
+{-# COMPLETE GSR, GDff, GDffZ, GConst, GUnop, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GSR, GDff, GDffZ, High, Low, GUnop, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GSR, GDff, GDffZ, GConst, Id, Not, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GSR, GDff, GDffZ, High, Low, Id, Not, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GSR, GDff, GDffZ, GConst, GUnop, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GSR, GDff, GDffZ, High, Low, GUnop, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GSR, GDff, GDffZ, GConst, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GSR, GDff, GDffZ, High, Low, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
 
 showNL :: NetList -> String -> String
 listify :: (LavaGen a, LavaGen b) =>
@@ -115,8 +130,8 @@ nlEmpty :: NetList
 
 -- Following netlists have one output named o, of given length.
 -- All inputs are of same length.
--- Exceptions: Mux selector and delay non-data inputs are length 1,
--- as is Const output. Dff output is named q.
+-- Exceptions: Mux selector and Dff non-data inputs are length 1,
+-- as is Const output. Dff/ output is named q.
 nlUnop :: Int -> Bool -> NetList -- input: x
 nlBinop :: Int -> Bool -> Binop -> NetList -- inputs: l, r
 nlConst :: Bool -> NetList -- inputs: none
@@ -124,27 +139,34 @@ nlMux :: Int -> Bool -> Bool -> NetList -- inputs: s, d0, d1
 nlDff :: Int -> Bool -> NetList -- inputs: c, w, d
 nlDffZ :: Int -> Bool -> Bool -> Bool -> NetList
 -- inputs: fw, fz, zs
+nlSR :: Int -> Bool -> Bool -> Bool -> NetList
+-- inputs: fs, fr, fq
 
 removeSignals :: NetList -> NetList
 
 countTransistors :: NetList -> Int
 
 wires :: Gate -> [SR]
-wires g = case g of
+wires = \case
   GConst _ -> []
   GUnop _ x -> [x]
   GBinop _ _ x y -> [x, y]
   GMux _ _ s d0 d1 -> [s, d0, d1]
   GDff _ w d -> [w, d]
   GDffZ _ _ _ w z d -> [w, z, d]
+  GSR _ _ _ s r -> [s, r]
 
 detOuts :: [((String, Int), Int)] -> [(String, Int)] ->
            [(String, [(SR, Bool)])]
-detGates :: [(Int, Sig Int)] -> IntMap (Sig Int)
+detGates :: [(Int, Sig Int)] -> IntMap Gate
 
-listify f a b =
-  NetList (sigs a) (detOuts outs $ sigs b) (detGates gates) IM.empty where
-  (gates, outs) = netlist f a b
+listify f a b = compress $ NetList {
+  inputs = LNL.sigs a,
+  outputs = detOuts outs $ LNL.sigs b,
+  gates = detGates gates,
+  sigs = IM.empty,
+  nGate = 0 }
+  where (gates, outs) = netlist f a b
 
 droppingList :: Int -> [Int]
 droppingList i = [i-1, i-2 .. 0]
@@ -157,13 +179,14 @@ detGates = fmap detGate . IM.fromList where
   foo = (Nothing,)
   detGate (Bool b) = GConst b
   detGate (Inv b) = Not $ foo b
-  detGate (And a b) = GAnd `on` foo a b
-  detGate (Or a b) = GOr `on` foo a b
-  detGate (Xor a b) = GOr `on` foo a b
+  detGate (And a b) = on GAnd foo a b
+  detGate (Or a b) = on GOr foo a b
+  detGate (Xor a b) = on GXor foo a b
   detGate (Var n i) = Id (Just n, i)
-  detGate (Dff w d) = GDff False (foo w) (foo d)
-  detGate (DffZ w z d) = GDffZ False False False (foo w) (foo z) (foo d)
-
+  detGate (Dff w d) = (GDff False `on` foo) w d
+  detGate (DffZ w z d) = (GDffZ False False False `on3` foo) w z d
+  detGate (Mux s d0 d1) = on3 MuxS foo s d0 d1
+  
 showPort :: String -> (String, Int) -> String
 showSignal :: Int -> String
 dumpComponent :: (SR, Gate) -> String
@@ -200,9 +223,8 @@ dumpOneFancy :: String -> Int -> (SR, Bool) -> String
 dumpFancy (n, g) = zipWith (dumpOneFancy n) [0..] $
                    reverse g
 dumpOneFancy sn si (t, z) =
-  concat $ ["  ", showSR n, " <= "] ++ if' z ("not ":) id [showSR t]
-
-
+  concat $ ["  ", showSR (Just sn, si), " <= "] ++
+  if' z ("not ":) id [showSR t]
 
 dumpComponent (n, g) = concat $
                        ["  c_", showSRBlob n,
@@ -232,44 +254,52 @@ showGateType (GDff w _ _) = "dff_" ++ if' w "l" "h"
 showGateType (GDffZ w z s _ _ _) = "dff_" ++ if' w 'l' 'h' : "_z" ++
                                          if' z 'h' 'l' :
                                          if' s "s" "r"
-
+showGateType (GSR s r q _ _) = "srff_s" ++ if' s 'l' 'h' : "_r" ++
+                               if' r 'l' 'h' : if' q "_inv" ""
 
 addSignal n (NetList i o g s m) = (NetList i o g s' (m + n), sn)
   where s' = IM.insert sn [m .. m + n - 1] s
         sn = maybe 0 ((+1) . fst) $ IM.lookupMin s
 
-nlpToSR :: (Int -> [Int]) -> NLS -> SR
+nlpToSR :: (Int -> [Int]) -> NLP -> SR
 nlpToSR = uncurry . either ((,) . Just) . ((((Nothing,) .) . (!!)) .)
 
 addInput n l (NetList i o g s m) = NetList ((n,l):i) o g s m
 
 addOutput n l (NetList i o g s m) =
-  NetList i ((n, (Nothing,) <$> [m .. m + l - 1]):o) g s (m + l)
+  NetList i ((n, (, False) . (Nothing,) <$> [m .. m + l - 1]):o) g s (m + l)
 
 setOutput n i s b x = x { outputs = foo (outputs x) } where
-  foo ((a, d):as) = if a == n
+  foo (x@(a, d):as) = if a == n
                     then (a, bar (length d - i - 1) d):as
-                    else a:foo as
+                    else x:foo as
   bar 0 (_:bs) = (nlpToSR (sigs x IM.!) s, b):bs
   bar i (b:bs) = i `seq` b:bar (i - 1) bs
 
+setOutputs m x = x {outputs = foo <$> outputs x } where
+  foo x@(a, d) = fromMaybe x $ (a,) . reverse . zipWith bar (reverse d) .
+                 (<$> [0..]) . (IM.!?) <$> (m M.!? a)
+  bar b g = maybe b (first $ nlpToSR (sigs x IM.!)) g
+    
 on3 :: (b -> b -> b -> c) -> (a -> b) -> a -> a -> a -> c
 on3 = join . ((flip . (on .)) .) . (.)
 
 rewire :: (SR -> SR) -> Gate -> Gate
 rewire _ x@(GConst _) = x
 rewire g (GUnop f x) = GUnop f $ g x
-rewire g (GBinop f o x y) = GBinop f o `on` g x y
-rewire g (GMux f0 f1 s d0 d1) = GMux f0 f1 `on3` g s d0 d1
-rewire g (GDff fw w d) = GDff fw `on` g w d
-rewire g (GDffZ fw fz zs w z d) = GDffZ fw fz zs `on3` g w z d
+rewire g (GBinop f o x y) = (GBinop f o `on` g) x y
+rewire g (GMux f0 f1 s d0 d1) = (GMux f0 f1 `on3` g) s d0 d1
+rewire g (GDff fw w d) = (GDff fw `on` g) w d
+rewire g (GDffZ fw fz zs w z d) = (GDffZ fw fz zs `on3` g) w z d
 
 mapEither :: (a -> Either b c) -> [a] -> ([b], [c])
 mapEither = flip foldr ([], []) . (either (first . (:)) (second . (:)) .)
 
 incorporate f (NetList pi po pg _ pm) (NetList wi wo wg ws wm) =
   NetList wi wo' wg' ws wm' where
-  smap = (M.fromList (ap (,) (fmap (fmap $ nlpToSR (ws IM.!)) . f) . fst) M.!)
+  pio = fmap fst pi ++ fmap fst po
+  smap = (M.!) $ M.fromList $
+    (,) <*> fmap (nlpToSR (ws IM.!) <$>) . f <$> pio
   po' = second (fmap $ first $ uncurry $
          maybe ((Nothing,) . (+ wm))
          ((fromJust .) . (!!) . smap)) <$> po
@@ -295,18 +325,18 @@ addMap i = Endo $ \(a, m) -> a `seq`
                              then (a, m)
                              else (a + 1, IM.insert i a m)
 
-removeSigmals (NetList i o g _ _) = compress $ NetList i o g IM.empty 0
+removeSignals (NetList i o g _ _) = compress $ NetList i o g IM.empty 0
 
 compress (NetList i o g s _) = NetList i o' g' s' m where
-  theMaps = foldMap (foldMap doSR . snd) o <>
-    foldMapWithKey ((. (foldMap doSR . wires)) . (<>) . addMap) g <>
+  theMaps = foldMap (foldMap (doSR . fst) . snd) o <>
+    IM.foldMapWithKey ((. (foldMap doSR . wires)) . (<>) . addMap) g <>
     foldMap (foldMap addMap) s
   doSR = uncurry $ maybe addMap (const $ const mempty)
   (m, finMap) = appEndo theMaps (0, IM.empty)
   rewireSR (Nothing, i) = (Nothing, finMap IM.! i)
   rewireSR x = x
   o' = second (fmap $ first rewireSR) <$> o
-  g' = IM.mapKeys (finMap IM.!) $ rewire ((, False) . rewireSR) <$> g
+  g' = IM.mapKeys (finMap IM.!) $ rewire rewireSR <$> g
   s' = fmap (finMap IM.!) <$> s
 
 verifyInputs :: Map String Int -> All
@@ -314,16 +344,18 @@ verifyInputs :: Map String Int -> All
 verifyInputs = foldMap (All . (>= 0))
 
 verify (NetList i o g s m) = getAll $ verifyInputs i' <>
-                             All (findMin g' >= 0) <>
-                             All (findMax g' < m) <>
-                             checkLegal checkSR snd o <>
+                             All (IS.findMin g' >= 0) <>
+                             All (IS.findMax g' < m) <>
+                             checkLegal (checkSR . fst) snd o <>
                              checkLegal checkSR wires g <>
                              checkLegal (`IS.member` g') id s where
   g' = IM.keysSet g
   i' = M.fromList i
-  checkLegal = (foldMap .) . (.) . foldMap
+  checkLegal :: (Foldable f, Foldable g) => (b -> Bool) -> (a -> g b) ->
+                f a -> All
+  checkLegal = (foldMap .) . (.) . foldMap . (All .)
   checkSR = uncurry $ maybe (`IS.member` g') $
-    liftA2 (&&) (>= 0) . (>) . flip (IM.findWithDefault 0) i'
+    liftA2 (&&) (>= 0) . (>) . flip (M.findWithDefault 0) i'
 
 
 mkSR :: String -> Int -> SR
@@ -358,8 +390,15 @@ nlDff n fw =
 nlDffZ n fw fz zs =
   standard n [("w", 1), ("z", 1), ("d", n)] "q" $
   GDffZ fw fz zs (mkSR "w" 0) (mkSR "z" 0) . mkSR "d"
+nlSR n fs fr fq =
+  standard n [("s", n), ("r", n)] "q" $
+  GSR fs fr fq <$> mkSR "s" <*> mkSR "r"
 
 countTransistors = (+) <$> countTransistorsO <*> countTransistorsI
+
+which :: c -> c -> Bool -> c
+which a _ True = a
+which _ a False = a
 
 countTransistorsO = getSum .
                     foldMap (foldMap (Sum . which 2 0 . snd) . snd) .
@@ -374,6 +413,7 @@ countTransistorsI = getSum . foldMap (Sum . countTrans) . gates where
   countTrans (GMux _ _ _ _ _) = 8
   countTrans (GDff _ _ _) = 6
   countTrans (GDffZ _ _ _ _ _ _) = 8
+  countTrans (GSR _ _ _ _ _) = 6
 
 -- t(s, q, t, a, b) transmits signals of type q from a to b when t is s.
 -- tm(s, t, a, b) is t(s, H, t, a, b) and t(s, L, t, a, b).

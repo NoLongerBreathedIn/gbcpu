@@ -51,7 +51,7 @@ cabal-version:       >=1.10
 
 library
   -- Modules exported by the library.
-  exposed-modules:     GB.CPU, GB.Lava.Netlist, GB.Lava.Signal, GB.Util.Symbolic, GB.Util.Clean, GB.Util.Base, GB.Util.NetList, GB.Util.CombSimp, GB.CPU.Decoder, GB.CPU.Encoder, GB.CPU.Test, GB.CPU.Alu
+  exposed-modules: GB.CPU, GB.Lava.Netlist, GB.Lava.Signal, GB.Util.Symbolic, GB.Util.Clean, GB.Util.Base, GB.Util.NetList, GB.Util.CombSimp, GB.CPU.Decoder, GB.CPU.Encoder, GB.CPU.Alu
 
   -- Modules included in this library but not exported.
   -- other-modules:
@@ -70,7 +70,7 @@ library
 
 executable cpu_test
   -- .hs or .lhs file containing the Main module.
-  main-is:             GB/CPU/Test.hs
+  main-is: GB/CPU/Test.hs
 
   -- Modules included in this executable, other than Main.
   other-modules: GB.CPU.Encoder, GB.CPU.Decoder, GB.Util.Symbolic, GB.Util.Base, GB.CPU.Alu, GB.Lava.Signal

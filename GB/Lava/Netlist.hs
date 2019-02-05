@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies, TupleSections, FlexibleInstances #-}
-module GB.Lava.Netlist (LavaGen, netlist, sigs) where
+module GB.Lava.Netlist (LavaGen, SingVar, ListVar, Fixup,
+                        varSing, varList, netlist, sigs) where
 
 import GB.Lava.Signal
 import Data.Reify
@@ -7,6 +8,13 @@ import Data.Maybe
 import Data.Functor
 import Data.Foldable
 import System.IO.Unsafe
+import Control.Arrow
+
+newtype SingVar = SingVar { getSingVar :: String }
+newtype ListVar = ListVar { getListVar :: (String, Int) }
+
+varSing = SingVar
+varList = curry ListVar
 
 class LavaGen g where
   type Fixup g
@@ -25,12 +33,12 @@ netlist f a b = (graph, names) where
 get :: Graph Sig -> Sig Int
 get (Graph g i) = fromJust $ lookup i g
 
-instance LavaGen String where
-  type Fixup String = Signal
+instance LavaGen SingVar where
+  type Fixup SingVar = Signal
   struct _ = id
-  fixup = var
-  sigs = (:[]) . (, 1)
-  destruct (Graph _ i) n = [((n, 0), i)]
+  fixup = var . getSingVar
+  sigs = (:[]) . (, 1) . getSingVar
+  destruct (Graph _ i) (SingVar n) = [((n, 0), i)]
 
 instance LavaGen () where
   type Fixup () = ()
@@ -39,14 +47,14 @@ instance LavaGen () where
   sigs _ = []
   destruct _ _ = []
 
-instance LavaGen (String, Int) where
-  type Fixup (String, Int) = [Signal]
+instance LavaGen ListVar where
+  type Fixup ListVar = [Signal]
   struct _ = foldr (curry and2) high
   fixup = map varPosn . sigs
-  sigs (n, i) = (n,) <$> [i - 1, i - 2 .. 0]
-  destruct _ (_, 0) = []
-  destruct g@(Graph h _) (n, i) = ((n, i - 1), a) :
-                                  destruct (Graph h b) (n, i - 1) where
+  sigs (ListVar (n, i)) = (n,) <$> [i - 1, i - 2 .. 0]
+  destruct _ (ListVar (_, 0)) = []
+  destruct g@(Graph h _) (ListVar (n, i)) =
+    ((n, i - 1), a) : destruct (Graph h b) (ListVar (n, i - 1)) where
     (a, b) = case get g of
       And x y -> (x, y)
 

@@ -225,6 +225,6 @@ main = do
     show (totCount - readCount) ++ " file" ++
     (if readCount == totCount - 1 then "" else "s") ++
     " unreadable (" ++ show totCount ++ " total)"
-  when (totCot > 1 && readCount /= 0) $ do
+  when (totCount > 1 && readCount /= 0) $ do
     putStrLn "Totals:"
     printTotals ct cf tt tf bs bmt st sf gt gf

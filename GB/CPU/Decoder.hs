@@ -100,11 +100,11 @@ registers :: RegisterSet Signal -> Signal -> Signal -> Signal ->
              CPURegisters Signal
 -- clocko, then clocki, then reset.
 
-sixteenRegSimple :: Signal Bool -> Signal -> Signal -> Signal ->
+sixteenRegSimple :: Signal -> Signal -> Signal -> Signal ->
                     Signal -> Signal -> [Signal] ->
                     [Either Bool Signal] ->
                     ([Signal], [Signal])
-sixteenRegSimple setH setL setA co ci rs s8 sa b =
+sixteenRegSimple setH setL setA co ci rs s8 sa =
   (registerz co ci (setH ||| setA) rs $
     zipWith ((. Right) . (wrapPlain .) . muxb setH) h s8,
    registerz co ci (setL ||| setA) rs $
@@ -136,7 +136,7 @@ registers set co ci rs = CPURegisters a b c d e f h l ip sp
   sixteenset = ensureLength 9 $ sixteens set
   b16 = ensureLength 16 $ sixteenBus set
   idec = ensureLength 16 $ sixteenID set
-  initEights = map (flip (register ck) `flip` eightsrc) eightset
+  initEights = map (register co ci `flip` eightsrc) eightset
   a = initEights !! 7
   b = initEights !! 0
   c = initEights !! 1
@@ -167,6 +167,13 @@ registers set co ci rs = CPURegisters a b c d e f h l ip sp
 
 ensureLength :: Int -> [a] -> [a]
 ensureLength i = elems . listArray (1, i)
+
+mmuxc :: (Signalish s) => [s] -> [[Maybe (Either Bool s)]] -> [s]
+mmuxc [] [a] = wrapPlain . fromJust <$> a
+mmuxc (s:ss) as = mmuxc ss $
+                 uncurry (zipWith $ zipWith $ muxc s) $ splitAt l as
+  where l = length as `div` 2
+
 
 decode mi inp st = RegisterSet eset sset aluo b16 id16 o16
                      spie cie wm fnew where

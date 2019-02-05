@@ -10,18 +10,19 @@ import Data.Function
 import Data.Traversable
 import Data.Monoid
 import Control.Monad
+import Control.Arrow (second, Kleisli(..))
+import Data.Maybe
 
 simplifyComb :: IntMap Gate -> Maybe (IntMap Gate)
-simplifyCombNL :: NL Gate -> Maybe (NL PGate)
+simplifyCombNL :: NL Gate -> Maybe (NL Gate)
 
-simplifyCombNL = NL . second simplifyComb . getNL
+simplifyCombNL = fmap NL . runKleisli (second $ Kleisli simplifyComb) . getNL
 
-type DffP = (Maybe (Bool, Bool, SR), Bool, SR, SR)
--- fz, zs, z; fw, w, d
+type DffP = (Maybe (Bool, Bool, Maybe SR), Bool, SR, SR)
 
 computeReps :: IntMap Gate -> IntMap (Symb (Either DffP SR))
 
-look :: IntMap (Symb SR) -> SR -> Symb SR
+look :: IntMap (Symb (Either a SR)) -> SR -> Symb (Either a SR)
 
 computeReps = fix . flip (IM.map . compGate) where
   hBin BAnd = (&&&)
@@ -30,12 +31,16 @@ computeReps = fix . flip (IM.map . compGate) where
   hBin BImpl = (!||)
   compGate _ (GConst x) = Inj x
   compGate m (GUnop f x) = Inj f ^^^ look m x
-  compGate m (GBinop f o x y) = Inj f ^^^ hBin o (look m x) (look m y)
-  compGate m (GMux f0 f1 s d0 d1) = mux2 s (Inj f0 ^^^ d0) (Inj f1 ^^^ d1)
-  compGate (GDff fw w d) = Symb $ Left (Nothing, fw, w, d)
-  compGate (GDff fw fz zs w z d) = Symb $ Right (Just (fz, zs, z), fw, w, d)
+  compGate m (GBinop f o x y) = Inj f ^^^ on (hBin o) (look m) x y
+  compGate m (GMux f0 f1 s d0 d1) =
+    mux2 (look m s) (Inj f0 ^^^ look m d0) (Inj f1 ^^^ look m d1)
+  compGate _ (GDff fw w d) = Symb $ Left (Nothing, fw, w, d)
+  compGate _ (GDffZ fw fz zs w z d) =
+    Symb $ Left (Just (fz, zs, Just z), fw, w, d)
+  compGate _ (GSR fs fr fq s r) =
+    Symb $ Left (Just (fr, fq, Nothing), fs, s, r)
 
-simpGate :: Int -> IntMap (Symb SR) -> Gate -> Maybe Gate
+simpGate :: (Eq a) => IntMap (Symb (Either a SR)) -> Gate -> Maybe Gate
 
 simpWith :: (a -> Maybe a) -> IntMap a -> Maybe (IntMap a)
 maybeToBool :: a -> Maybe a -> (Any, a)
@@ -50,12 +55,10 @@ boolToMaybe = uncurry $ which Just (const Nothing) . getAny
 
 simpWith = (boolToMaybe .) . traverse . ap maybeToBool
 
-simplifyComb x = do
-  y <- fst <$> IM.lookupMin x
-  x' <- simpWith =<< simpGate (y - 1) . computeReps $ x
-  return IM.insert (y - 1) (GConst True) $ IM.insert (y - 2) (GConst False) x'
+simplifyComb = simpWith =<< simpGate . computeReps
 
-look m = uncurry $ maybe (m IM.!) (curry (Symb . Right) . Just)
+look m (Nothing, x) = m IM.! x
+look _ x = Symb $ Right x
 
 simpBOp :: (Eq a) => Binop -> Bool -> Symb a -> Symb a ->
            SR -> SR -> Maybe Gate
@@ -63,16 +66,20 @@ simpMux :: (Eq a) => Bool -> Bool -> Symb a -> Symb a -> Symb a ->
            SR -> SR -> SR -> Maybe Gate
 
 simpDff :: (Eq a) => Bool -> Symb a -> Symb a -> SR -> SR -> Maybe Gate
-simpDffZ :: (Eq a) => Int -> Bool -> Bool -> Bool ->
+simpDffZ :: (Eq a) => Bool -> Bool -> Bool ->
             Symb a -> Symb a -> Symb a -> SR -> SR -> SR -> Maybe Gate
+simpSR :: (Eq a) => Bool -> Bool -> Bool -> Symb a -> Symb a -> SR -> SR ->
+          Maybe Gate
 
-simpGate _ m (GBinop f o l r) = simpBOp o f (look m l) (look m r) l r
-simpGate _ m (GMux f0 f1 s d0 d1) =
-  simpMux f0 f1 (look m s) (look m d0) (look m d1)
-simpGate x m (GDff fw w d) = simpDff x fw (look m w) (look m d) w d
-simpGate x m (GDffZ fw fz zs w z d) =
-  simpDffZ x fw fz zs (look m w) (look m z) (look m d) w z d
-simpGate _ _ _ = Nothing
+simpGate m (GBinop f o l r) = simpBOp o f (look m l) (look m r) l r
+simpGate m (GMux f0 f1 s d0 d1) =
+  simpMux f0 f1 (look m s) (look m d0) (look m d1) s d0 d1
+simpGate m (GDff fw w d) = simpDff fw (look m w) (look m d) w d
+simpGate m (GDffZ fw fz zs w z d) =
+  simpDffZ fw fz zs (look m w) (look m z) (look m d) w z d
+simpGate m (GSR fs fr fq s r) =
+  simpSR fs fr fq (look m s) (look m r) s r
+simpGate _ _ = Nothing
 
 simpBAnd :: (Eq a) => Bool -> Bool -> Bool -> Symb a -> Symb a ->
             SR -> SR -> Maybe Gate
@@ -123,9 +130,9 @@ simpMux f0 f1 ss dd0 dd1 s d0 d1
       Just $ psimpBAnd False (not f1) True ss dd1 s d1
   | equivalent (dd0' !|| ss) (Inj True) =
       Just $ psimpBAnd False f1 False ss dd1 s d1
-  | equivalent (ss !|| dd1) (Inj True) =
+  | equivalent (ss !|| dd1') (Inj True) =
       Just $ psimpBAnd True (not f0) True ss dd0 s d0
-  | equivalent (ss &&& d1) (Inj False) =
+  | equivalent (ss &&& dd1') (Inj False) =
       Just $ psimpBAnd True f0 False ss dd0 s d0
   | equivalent (ddf ||| ss) (Inj True) =
       Just $ psimpBXor True ss dd1 s d1
@@ -156,15 +163,28 @@ simpDff fw ww dd w d
 
 psimpDff fw ww dd w d = fromMaybe (GDff fw w d) $ simpDff fw ww dd w d
 
-fooPtr :: Int -> Bool -> SR
-fooPtr x True = (Nothing, x)
-fooPtr x False = (Nothing, x - 1)
+psimpSR fs fr fq ss rr s r = fromMaybe (GSR fs fr fq s r) $
+                             simpSR fs fr fq ss rr s r
 
-simpDffZ x fw fz zs ww zz dd w z d
+simpDffZ fw fz zs ww zz dd w z d
   | equivalent (zz' &&& dd' &&& ww') (Inj False) =
       Just $ GConst zs
   | equivalent (zz' !|| ww') (Inj True) =
       Just $ psimpBAnd fz zs zs zz dd z d
   | equivalent (zz' &&& ww' !|| dd') (Inj True) =
-      Just $ GDffZ fw fz zs w z $ fooPtr x $ not zs
+      Just $ psimpSR fw fz zs ww zz w z
   | otherwise = Nothing
+  where
+    zz' = if fz then neg zz else zz
+    ww' = if fw then neg ww else ww
+    dd' = if zs then neg dd else dd
+
+simpSR fs fr fq ss rr s r
+  | equivalent (ss' ||| rr') (Inj True) =
+      Just $ GUnop (fq == fr) r
+  | equivalent (ss' !|| rr') (Inj True) =
+      Just $ GConst fq
+  | otherwise = Nothing
+  where
+    ss' = if fs then neg ss else ss
+    rr' = if fr then neg rr else rr
