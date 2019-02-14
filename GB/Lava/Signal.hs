@@ -21,6 +21,7 @@ data Sig a = Bool Bool
            | Dff a a -- write value
            | DffZ a a a -- write zero value
            | Mux a a a
+           | Delay a
            deriving (Functor, Show)
 newtype Signal = Signal { getSignal :: Sig Signal }
   deriving (Show)
@@ -35,6 +36,7 @@ instance Traversable Sig where
     Dff x y -> Dff <$> x <*> y
     DffZ x y z -> DffZ <$> x <*> y <*> z
     Mux x y z -> Mux <$> x <*> y <*> z
+    Delay x -> Delay <$> x
 
 instance Foldable Sig where
   foldMap = foldMapDefault
@@ -73,3 +75,4 @@ dff = (Signal .) . Dff
 dffZ = ((Signal .) .) . DffZ
 var = Signal . flip Var 0
 varPosn = Signal . uncurry Var
+delay = Signal . delay

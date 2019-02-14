@@ -39,11 +39,11 @@ alu :: (Signalish a) => a -> a -> a -> a -> a -> a -> a -> a -> [a] -> [a] ->
 misc :: (Signalish a) => a -> a -> a -> a -> a -> a -> [a] -> [a] -> ([a], a)
 
 alu opA opB kL cL kR cR c co l r = (result, zero, half, carry)
-  where modL = map ((^^^ cL) . (&&& kL)) l
-        modR = map ((^^^ cR) . (&&& kR)) r
-        modLM = map ((^^^ cL) . (&&& kL)) l
-        resultXor = zipWith (^^^) modL modR
-        resultAnd = map (^^^ co) $ zipWith (&&&) modL modR
+  where modL = map ((^-^ cL) . (&-& kL)) l
+        modR = map ((^-^ cR) . (&-& kR)) r
+        modLM = map ((^-^ cL) . (&-& kL)) l
+        resultXor = zipWith (^-^) modL modR
+        resultAnd = map (^-^ co) $ zipWith (&-&) modL modR
         (resultLSum, half) = (adder c `on` drop 4) modL modR
         (resultHSum, carrySum) = (adder c `on` take 4) modL modR
         resultSum = resultHSum ++ resultLSum
@@ -72,7 +72,7 @@ bit (s:ss) as = bit ss $ uncurry (flip $ zipWith (mux2 s)) $ splitAt l as
   where l = length as `div` 2
 
 setI :: (Signalish a) => [a] -> [a]
-setI = foldr (\s l -> map (&&& s) l ++ map (&&& neg s) l) [fromBool True]
+setI = foldr (\s l -> map (&-& s) l ++ map (&-& neg s) l) [fromBool True]
 
 setAndTest :: (Signalish a) => a -> [a] -> [a] -> ([a], a)
 
@@ -96,9 +96,9 @@ misc kL cL kR cR co c a sh = (result, carry)
 daa :: (Signalish a) => a -> a -> a -> [a] -> (a, a)
 
 compToNine :: (Signalish a) => a -> [a] -> a
-compToNine l [a, b, c, d] = a &&& (b ||| c ||| d &&& l)
+compToNine l [a, b, c, d] = a &-& (b |-| c |-| d &-& l)
 
-daa n h c a = (ch &&& iN ||| c, cl &&& iN ||| h)
+daa n h c a = (ch &-& iN |-| c, cl &-& iN |-| h)
   where iN = neg n
         (ah, al) = splitAt 4 a
         cl = compToNine (fromBool True) al

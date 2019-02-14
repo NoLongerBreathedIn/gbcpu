@@ -14,7 +14,7 @@ module GB.Util.NetList (NetList(..), listify, showNL,
                         pattern Id, pattern Not,
                         addSignal, addInput, addOutput, setOutput,
                         setOutputs, removeSignals,
-                        incorporate, compress, verify, nlEmpty,
+                        incorporate, compress, verify, nlEmpty, nlDelay,
                         nlUnop, nlBinop, nlConst, nlMux, nlDff, nlDffZ, nlSR,
                         countTransistors, wires,
                         LavaGen, SingVar, ListVar, Fixup,
@@ -50,7 +50,7 @@ data NetList = NetList { inputs :: [(String, Int)],
              deriving (Generic, NFData, Show)
 
 type SR = (Maybe String, Int)
-type NLP = (Either String Int, Int)
+vtype NLP = (Either String Int, Int)
 
 data Binop = BAnd | BOr | BXor | BImpl
            deriving (Eq, Generic, NFData, Show)
@@ -73,6 +73,7 @@ data Gate = GConst Bool -- f
           -- Set q to fq if r /= fr.
           -- Else set q to !fq if s /= fs.
           -- Else no change.
+          | GDelay SR
           deriving (Eq, Generic, NFData, Show)
 
 pattern GAnd   x y = GBinop False BAnd  x y
@@ -92,21 +93,21 @@ pattern Low  = GConst False
 pattern Id  x = GUnop False x
 pattern Not x = GUnop True  x
 
-{-# COMPLETE GSR, GDff, GDffZ, High, Low, GUnop, GMux, GBinop #-}
-{-# COMPLETE GSR, GDff, GDffZ, GConst, Id, Not, GMux, GBinop #-}
-{-# COMPLETE GSR, GDff, GDffZ, High, Low, Id, Not, GMux, GBinop #-}
-{-# COMPLETE GSR, GDff, GDffZ, GConst, GUnop, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
-{-# COMPLETE GSR, GDff, GDffZ, High, Low, GUnop, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
-{-# COMPLETE GSR, GDff, GDffZ, GConst, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
-{-# COMPLETE GSR, GDff, GDffZ, High, Low, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
-{-# COMPLETE GSR, GDff, GDffZ, GConst, GUnop, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GSR, GDff, GDffZ, High, Low, GUnop, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GSR, GDff, GDffZ, GConst, Id, Not, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GSR, GDff, GDffZ, High, Low, Id, Not, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GSR, GDff, GDffZ, GConst, GUnop, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GSR, GDff, GDffZ, High, Low, GUnop, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GSR, GDff, GDffZ, GConst, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
-{-# COMPLETE GSR, GDff, GDffZ, High, Low, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, High, Low, GUnop, GMux, GBinop #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, GConst, Id, Not, GMux, GBinop #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, High, Low, Id, Not, GMux, GBinop #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, GConst, GUnop, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, High, Low, GUnop, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, GConst, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, High, Low, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GBinop #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, GConst, GUnop, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, High, Low, GUnop, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, GConst, Id, Not, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, High, Low, Id, Not, GMux, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, GConst, GUnop, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, High, Low, GUnop, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, GConst, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
+{-# COMPLETE GDelay, GSR, GDff, GDffZ, High, Low, Id, Not, MuxS, MuxNS, MuxSN, MuxN, GAnd, GOr, GNand, GNor, GXor, GIff, GImpl, GNimpl #-}
 
 showNL :: NetList -> String -> String
 listify :: (LavaGen a, LavaGen b) =>
@@ -141,6 +142,7 @@ nlDffZ :: Int -> Bool -> Bool -> Bool -> NetList
 -- inputs: fw, fz, zs
 nlSR :: Int -> Bool -> Bool -> Bool -> NetList
 -- inputs: fs, fr, fq
+nlDelay :: Int -> NetList -- input: i
 
 removeSignals :: NetList -> NetList
 
@@ -155,6 +157,7 @@ wires = \case
   GDff _ w d -> [w, d]
   GDffZ _ _ _ w z d -> [w, z, d]
   GSR _ _ _ s r -> [s, r]
+  GDelay s -> [s]
 
 detOuts :: [((String, Int), Int)] -> [(String, Int)] ->
            [(String, [(SR, Bool)])]
@@ -186,6 +189,7 @@ detGates = fmap detGate . IM.fromList where
   detGate (Dff w d) = (GDff False `on` foo) w d
   detGate (DffZ w z d) = (GDffZ False False False `on3` foo) w z d
   detGate (Mux s d0 d1) = on3 MuxS foo s d0 d1
+  detGate (Delay x) = GDelay $ foo x
   
 showPort :: String -> (String, Int) -> String
 showSignal :: Int -> String
@@ -246,6 +250,7 @@ showGateType (MuxS _ _ _) = "mux2"
 showGateType (MuxNS _ _ _) = "muxnk"
 showGateType (MuxSN _ _ _) = "muxkn"
 showGateType (MuxN _ _ _) = "muxn"
+showGateType (GDelay _) = "delay"
 showGateType High = "vdd"
 showGateType Low = "gnd"
 showGateType (Id _) = "wire"
@@ -291,6 +296,7 @@ rewire g (GBinop f o x y) = (GBinop f o `on` g) x y
 rewire g (GMux f0 f1 s d0 d1) = (GMux f0 f1 `on3` g) s d0 d1
 rewire g (GDff fw w d) = (GDff fw `on` g) w d
 rewire g (GDffZ fw fz zs w z d) = (GDffZ fw fz zs `on3` g) w z d
+rewire g (GDelay x) = GDelay $ g x
 
 mapEither :: (a -> Either b c) -> [a] -> ([b], [c])
 mapEither = flip foldr ([], []) . (either (first . (:)) (second . (:)) .)
@@ -393,6 +399,7 @@ nlDffZ n fw fz zs =
 nlSR n fs fr fq =
   standard n [("s", n), ("r", n)] "q" $
   GSR fs fr fq <$> mkSR "s" <*> mkSR "r"
+nlDelay n = standard n [("i", n)] "o" $ GDelay <$> mkSR "i"
 
 countTransistors = (+) <$> countTransistorsO <*> countTransistorsI
 
@@ -414,6 +421,7 @@ countTransistorsI = getSum . foldMap (Sum . countTrans) . gates where
   countTrans (GDff _ _ _) = 6
   countTrans (GDffZ _ _ _ _ _ _) = 8
   countTrans (GSR _ _ _ _ _) = 6
+  countTrans (GDelay _) = 10 -- buf^5
 
 -- t(s, q, t, a, b) transmits signals of type q from a to b when t is s.
 -- tm(s, t, a, b) is t(s, H, t, a, b) and t(s, L, t, a, b).

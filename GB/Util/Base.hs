@@ -3,7 +3,7 @@ module GB.Util.Base where
 
 import GB.Lava.Signal
 import Data.List (foldl')
-import Control.Arrow (first)
+import Control.Arrow
 import Control.Monad (join)
 import Control.Applicative
 import Data.Function (on, fix)
@@ -13,9 +13,9 @@ if' True = const
 if' False = const id
 
 class Signalish s where
-  (^^^) :: s -> s -> s
-  (&&&) :: s -> s -> s
-  (|||) :: s -> s -> s
+  (^-^) :: s -> s -> s
+  (&-&) :: s -> s -> s
+  (|-|) :: s -> s -> s
   (&!&) :: s -> s -> s
   (|!|) :: s -> s -> s
   (^!^) :: s -> s -> s
@@ -26,9 +26,9 @@ class Signalish s where
   mux2 :: s -> s -> s -> s
   
 instance Signalish Bool where
-  (^^^) = (/=)
-  (&&&) = (&&)
-  (|||) = (||)
+  (^-^) = (/=)
+  (&-&) = (&&)
+  (|-|) = (||)
   (&!&) = (||) `on` not
   (|!|) = (&&) `on` not
   (^!^) = (==)
@@ -39,9 +39,9 @@ instance Signalish Bool where
   mux2 = flip . if'
   
 instance Signalish Signal where
-  (^^^) = curry xor2
-  (&&&) = curry and2
-  (|||) = curry or2
+  (^-^) = curry xor2
+  (&-&) = curry and2
+  (|-|) = curry or2
   (&!&) = curry nand2
   (|!|) = curry nor2
   (^!^) = curry xnor2
@@ -51,9 +51,9 @@ instance Signalish Signal where
   huh = fromBool True
   mux2 = mux
 
-infixl 7 &&&
-infixl 5 |||
-infixl 6 ^^^
+infixl 7 &-&
+infixl 5 |-|
+infixl 6 ^-^
 infix 7 &!&
 infix 5 |!|
 infix 6 ^!^
@@ -68,9 +68,9 @@ nands :: (Signalish a) => [a] -> a
 
 comb :: (a -> a -> a) -> [a] -> [a] -> a
 
-xors = comb (^^^) []
-ors = comb (|||) []
-ands = comb (&&&) []
+xors = comb (^-^) []
+ors = comb (|-|) []
+ands = comb (&-&) []
 xnors = neg . xors
 nors = neg . ors
 nands = neg . ands
@@ -81,10 +81,10 @@ comb f as [b] = comb f [] (b : as)
 comb f as (b:c:ds) = comb f (f b c : as) ds
 
 fullAdd :: (Signalish a) => a -> a -> a -> (a, a)
-fullAdd a b c = (xors [a, b, c], a &&& (b ||| c) ||| b &&& c)
+fullAdd a b c = (xors [a, b, c], a &-& (b |-| c) |-| b &-& c)
 
 halfAdd :: (Signalish a) => a -> a -> (a, a)
-halfAdd a b = (a ^^^ b, a &&& b)
+halfAdd a b = (a ^-^ b, a &-& b)
 
 row :: (a -> b -> (c, a)) -> a -> [b] -> ([c], a)
 row f a = foldl' (uncurry $ (. f) . (.) . first . flip (:)) ([], a) . reverse
@@ -94,7 +94,7 @@ adder :: (Signalish a) => a -> [a] -> [a] -> ([a], a)
 adder = (.zip) . (.) . row (uncurry . fullAdd)
 
 incDec :: (Signalish a) => a -> [a] -> [a]
-incDec a = map (^^^ a) . fst . row halfAdd (fromBool True) . map (^^^ a)
+incDec a = map (^-^ a) . fst . row halfAdd (fromBool True) . map (^-^ a)
 
 muxb :: (Signalish a) => a -> Either Bool a -> Either Bool a -> Either Bool a
 
@@ -105,8 +105,8 @@ muxb m (Left a) (Left b) = if a == b then Left a
                            else Right $ if a then neg m else m
 muxb m (Right a) (Right b) = Right $ mux2 m a b
 
-muxb m (Left False) (Right x) = Right $ m &&& x
-muxb m (Right x) (Left True) = Right $ m ||| x
+muxb m (Left False) (Right x) = Right $ m &-& x
+muxb m (Right x) (Left True) = Right $ m |-| x
 muxb m l r = muxb (neg m) r l
 
 type SO a = Maybe (Either Bool a)
@@ -133,10 +133,21 @@ registerz :: Signal -> Signal -> Signal -> Signal -> [Signal] -> [Signal]
 registerAWz :: Signal -> Signal -> Signal -> [Signal] -> [Signal]
 -- clocko clocki zero data
 
-registerz = (. (&&&)) . (.) . registerAWz
+registerz = (. (&-&)) . (.) . registerAWz
 registerAWz = ((map .) .) . (liftA2 (.) `on` dffZ)
 
 register :: Signal -> Signal -> Signal -> [Signal] -> [Signal]
 registerAW :: Signal -> Signal -> [Signal] -> [Signal]
-register = (. (&&&)) . (.) . registerAW
+register = (. (&-&)) . (.) . registerAW
 registerAW = (map .) . (.) `on` dff
+
+fallingEdge :: Signal -> Signal
+fallingEdge = liftA2 (&-&) neg delay
+
+risingEdge :: Signal -> Signal
+risingEdge = (&-&) <*> neg . delay
+
+fallingEdgeToTwoPhase :: Signal -> (Signal, Signal)
+fallingEdgeToTwoPhase = (delay . delay &&& id) . fallingEdge
+twoPhaseToFallingEdge :: Signal -> Signal -> Signal
+twoPhaseToFallingEdge a b = dffZ b a high

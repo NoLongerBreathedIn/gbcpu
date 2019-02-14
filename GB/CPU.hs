@@ -17,13 +17,13 @@ fullCPU :: CPUInputs Signal -> Signal -> Signal -> Signal -> CPUOutputs
 
 fullCPU inp co ci rs = CPUOutputs (pc regOut) (memA regOut) (memW regOut)
                        (miscFlags mi !! 4)
-                       (inH &&& neg interrupted &&& (fIE regC ||| fpIE regC))
+                       (inH &-& neg interrupted &-& (fIE regC |-| fpIE regC))
                        inS where
   (stN, mi) = encode stC inp (carry regC) (fIE regC) (flags regC)
-  inHS = neg (stC !! 0) &&& (stC !! 1) &&& (stC !! 2)
+  inHS = neg (stC !! 0) &-& (stC !! 1) &-& (stC !! 2)
   -- 3F is stop, 3E is halt, nothing else starts with 3
-  inH = inHS &&& neg (stC !! 6)
-  inS = inHS &&& (stC !! 6)
+  inH = inHS &-& neg (stC !! 6)
+  inS = inHS &-& (stC !! 6)
   stC = registerAWz co ci rs stN
   regOut = regOutput regC
   interrupted = inter inp

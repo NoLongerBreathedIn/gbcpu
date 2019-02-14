@@ -105,9 +105,9 @@ sixteenRegSimple :: Signal -> Signal -> Signal -> Signal ->
                     [Either Bool Signal] ->
                     ([Signal], [Signal])
 sixteenRegSimple setH setL setA co ci rs s8 sa =
-  (registerz co ci (setH ||| setA) rs $
+  (registerz co ci (setH |-| setA) rs $
     zipWith ((. Right) . (wrapPlain .) . muxb setH) h s8,
-   registerz co ci (setL ||| setA) rs $
+   registerz co ci (setL |-| setA) rs $
    zipWith ((. Right) . (wrapPlain .) . muxb setL) l s8) where
   (h, l) = splitAt 8 sa
   
@@ -126,7 +126,7 @@ sixteenRegSP :: Signal -> Signal -> Signal -> Signal -> Signal ->
                 ([Signal], [Signal])
 
 sixteenRegSP setH setL setA setB co ci rs s8 s2 s3 s1 =
-  sixteenRegSimple setH setL (setA ||| setB) co ci rs s8 $
+  sixteenRegSimple setH setL (setA |-| setB) co ci rs s8 $
   zipWith (muxb setA) s1 $ zipWith ((Right .) . mux2 setB) s2 s3
 
 registers set co ci rs = CPURegisters a b c d e f h l ip sp
@@ -161,7 +161,7 @@ registers set co ci rs = CPURegisters a b c d e f h l ip sp
        replicate 8 (Left True) ++
        map Right (ensureLength 4 $ sixteenOther set) ++
        replicate 3 (Left True)
-  [ien] = registerz co ci (pie ||| clearIE set) rs [neg $ clearIE set]
+  [ien] = registerz co ci (pie |-| clearIE set) rs [neg $ clearIE set]
   [pie, wm] = registerAWz co ci rs [setpIE set, screwy set]
 
 
@@ -178,18 +178,18 @@ mmuxc (s:ss) as = mmuxc ss $
 decode mi inp st = RegisterSet eset sset aluo b16 id16 o16
                      spie cie wm fnew where
   [opA, opB, kL, cL, kR, cR, cf, co] = aluC mi
-  eset = foldr (\s l -> map (&&& s) l ++ map (&&& neg s) l) [fromBool True] $
+  eset = foldr (\s l -> map (&-& s) l ++ map (&-& neg s) l) [fromBool True] $
          setEights mi
   sset = (miscFlags mi !! 0) : ss
   (aluo, aluz, aluh, g) = alu opA opB kL cL kR cR cf co alul alur
   spie = miscFlags mi !! 1
   cie = miscFlags mi !! 2
-  fa = map (&&& (fM mi !! 1)) $ memR inp
-  fb = head fa : zipWith (|||) (tail fa) (fS mi)
-  fc = zipWith (&&&) (fR mi) $ map (wrapPlain . fromJust) $
+  fa = map (&-& (fM mi !! 1)) $ memR inp
+  fb = head fa : zipWith (|-|) (tail fa) (fS mi)
+  fc = zipWith (&-&) (fR mi) $ map (wrapPlain . fromJust) $
     zipWith3 muxc (fM mi) (map (Just . Right) $ flags st)
     [Just $ Right aluz, Nothing, Just $ Right aluh, Just $ Right g]
-  fnew = g : zipWith (|||) fb fc
+  fnew = g : zipWith (|-|) fb fc
   b16 = mmux (bus16 mi) [regB st ++ regC st, regD st ++ regE st,
                          regH st ++ regL st, regSP st]
   id16 = incDec (head $ iDec mi) $
@@ -209,17 +209,17 @@ decode mi inp st = RegisterSet eset sset aluo b16 id16 o16
      (12, map Just $ map Right (tail $ regF st) ++ replicate 4 (Left False)),
      (13, replicate 8 Nothing)]
   alur = mmuxc (aluR mi) $ elems ralub
-  interrupted = inter inp &&& fIE st
+  interrupted = inter inp &-& fIE st
   o16 = interrupted :
     zipWith (mux2 interrupted) (take 3 $ drop 2 $ instr inp) (ivec inp)
   p16 = setSixteens mi
   naffip = (p16 !! 6) |!| (p16 !! 7)
-  nincip = (p16 !! 6) !|| (p16 !! 7) ||| ors (iDec mi)
-  wm = weirdM st &&& naffip ||| (miscFlags mi !! 3) &&&
-       neg (fpIE st ||| fIE st)
+  nincip = (p16 !! 6) !|| (p16 !! 7) |-| ors (iDec mi)
+  wm = weirdM st &-& naffip |-| (miscFlags mi !! 3) &-&
+       neg (fpIE st |-| fIE st)
   -- Weird mode on if HALT and interrupts off,
   -- otherwise off if would affect IP,
   -- otherwise no change.
-  ss = uncurry (++) $ second (map (&&& (nincip ||| neg (weirdM st)))) $
+  ss = uncurry (++) $ second (map (&-& (nincip |-| neg (weirdM st)))) $
        splitAt 6 p16
   -- If weird mode on and would increment IP, don't.

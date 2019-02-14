@@ -4,18 +4,27 @@ import GB.Util.Base
 import Data.Array
 import Data.Word
 import Control.Monad
+import Control.Arrow (second)
 
-hMem :: [(Word8, Signal -> Signal -> Signal -> [Signal] -> [Signal])] ->
-        Signal -> Signal -> [Signal] -> Signal -> [Signal] -> [[Signal]]
--- replacements, co, ci, waddr[8], w, wdata[8], results
+type HMemSpec = (Word8, Array Word8 [Signal] -> Signal ->
+                 Signal -> Signal -> Signal -> Signal -> [Signal] ->
+                 ([Signal], [Signal]))
 
--- replacements take co, ci, w, wdata[8], results
 
-hMem repl co ci waddr w wdata = zipWith passin (demux w waddr) $ elems $
-  accum (const id) (listArray (0,255) $ replicate 256 register) repl where
-  passin w' f = f co ci w' wdata
+hMem :: [HMemSpec] -> Signal -> Signal -> Signal -> [Signal] -> Signal ->
+        Signal -> [Signal] -> ([[Signal]], Array Word8 [Signal])
+-- replacements, CGB mode, co, ci, waddr[8], w, zero, wdata[8], results
+
+-- replacements take extra data, CGB, co, ci, w, zero, wdata[8]
+
+hMem repl cgb z co ci waddr w wdata = outs where
+  outs = second (listArray (0,255)) $ unzip $
+         zipWith passin (demux w waddr) $ elems $
+         accum (const id) (listArray (0,255) $ replicate 256 reg) repl
+  passin w' f = f (snd outs) cgb co ci w' z wdata
+  reg _ _ co ci w _ wd = (register co ci w wd, [])
 
 demux :: Signal -> [Signal] -> [Signal]
 demux w = foldl demux' . (:[])
 demux' :: [Signal] -> Signal -> [Signal]
-demux' ws a = ws >>= flip (map . flip id) [(not a &&&), (a &&&)]
+demux' ws a = ws >>= flip (map . flip id) [(not a &-&), (a &-&)]

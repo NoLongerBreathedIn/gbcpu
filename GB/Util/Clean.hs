@@ -34,8 +34,6 @@ import Control.Monad.Identity
 
 type PGate = Either SR Gate
 
--- Idea! Change PGate to Gate whenever possible, so only handleNots need know.
-
 newtype DiffSet = DiffSet { getDiffSet :: IntSet }
 instance Semigroup DiffSet where
   (<>) = (DiffSet .) . on ($+$) getDiffSet
@@ -175,6 +173,7 @@ replaceWires = (boolToMaybe .) . replWires . ap maybeToBool where
   replWires f (GDffZ fw fz zs w z d) =
     GDffZ fw fz zs <$> f w <*> f z <*> f d
   replWires f (GSR fs fr fq s r) = GSR fs fr fq <$> f s <*> f r
+  replWires f (GDelay x) = GDelay <$> f x
   replWires _ x = pure x
 
 justNumbers :: SR -> IS.IntSet
@@ -231,6 +230,7 @@ isInt = uncurry $ maybe Just (const $ const Nothing)
 isntDelay m i = case m IM.! i of
   GDff _ _ _ -> False
   GDffZ _ _ _ _ _ _ -> False
+  GDelay _ -> False
   _ -> True
 
 findMergeableNots :: NL Gate -> IntMap Int
@@ -278,10 +278,12 @@ handleNotsAndWires = (boolToMaybe .) . hnw . ap (maybeToBool . (, False)) where
   hnw f (GDffZ fw fz zs w z d) =
     hmDffZ fw fz zs <$> f w <*> f z <*> f d
   hnw f (GSR fs fr fq s r) = fmap (, False) $ hmSR fs fr fq <$> f s <*> f r
+  hnw f (GDelay x) = hmDelay <$> f x
   hnw _ x = pure (x, False)
   hmDff fw (w, fw') (d, fd') = (GDff (fw /= fw') w d, fd')
   hmDffZ fw fz zs (w, fw') (z, fz') (d, fd') =
     (GDffZ (fw /= fw') (fz /= fz') (zs /= fd') w z d, fd')
+  hmDelay (x, fx') = (GDelay x, fx')
   hmUnop = uncurry . flip . (GUnop .) . (/=)
   hmBinop fo BAnd (l, fl) (r, fr) = hmAnd fl fr fo l r
   hmBinop fo BOr (l, fl) (r, fr) = (hmAnd `on3` not) fl fr fo l r
@@ -363,6 +365,7 @@ pullIsh = (pullIsh' <=<) . (IM.!?) where
   pullIsh' = const Nothing ||| pullIsh''
   pullIsh'' (GDff _ _ x) = pullIsh''' x
   pullIsh'' (GDffZ _ _ _ _ _ x) = pullIsh''' x
+  pullIsh'' (GDelay x) = pullIsh''' x
   pullIsh'' _ = Nothing
   pullIsh''' = uncurry $ maybe Just (const $ const Nothing)
 
@@ -371,6 +374,7 @@ adjFF = (second Just .) . (. fromJust) . adjFF' where
   adjFF' i (Right x) = Right <$> adjFF'' i x
   adjFF'' i (GDff fw w d) = (d, GDff fw w (Nothing, i))
   adjFF'' i (GDffZ fw fz zs w z d) = (d, GDffZ fw fz (not zs) w z (Nothing, i))
+  adjFF'' i (GDelay x) = (x, GDelay (Nothing, i))
 
 deNot i m = IM.insert pos (Left target) m' where
   pos = fst (IM.findMin m) - 1
@@ -384,6 +388,7 @@ pushNot' :: Int -> Int -> PGate -> (IntSet, PGate)
 pushNot' = \i j -> pushNotL i j &&& pushNotR (match i) where
   pushNotL i j (Right (GDff _ _ (Nothing, x))) | x == i = IS.singleton j
   pushNotL i j (Right (GDffZ _ _ _ _ _ (Nothing, x))) | x == i = IS.singleton j
+  pushNotL i j (Right (GDelay (Nothing, x))) | x == i = IS.singleton j
   pushNotL _ _ _ = IS.empty
   pushNotR f x@(Left y) = if f y then Right (Id y) else x
   pushNotR f (Right x) = Right $ pushNot'' f x
@@ -400,6 +405,8 @@ pushNot'' g (GMux f0 f1 s d0 d1)
 pushNot'' g (GDff fw w d) | g w = GDff (not fw) w d
 pushNot'' g (GDffZ fw fz zs w z d)
   | g w || g z || g d = GDffZ (fw /= g w) (fz /= g z) (zs /= g d) w z d
+pushNot'' g (GSR fs fr fq s r)
+  | g s || g r = GSR (fs /= g s) (fr /= g r) fq s r
 pushNot'' _ x = x
 
 pushNotBO :: Binop -> Bool -> Bool -> Bool -> SR -> SR -> Gate
@@ -458,6 +465,7 @@ correctConsts = (boolToMaybe .) . crcns . foo where
   crcns f (GDffZ fw fz zs w z d) =
     hdfz fw fz zs <$> f w <*> f z <*> f d
   crcns f (GSR fs fr fq s r) = hsr fs fr fq <$> f s <*> f r
+  crcns f (GDelay x) = hdel <$> f x
   crcns _ x = pure x
   huo b = either (GConst . (b /=)) (GUnop b)
   hbo BAnd = hor True True . not
@@ -495,6 +503,6 @@ correctConsts = (boolToMaybe .) . crcns . foo where
                             then huo (fr == fq) r
                             else GConst fq
   hsr fs fr fq (Right s) (Right r) = GSR fs fr fq s r
-                     
+  hdel = GConst ||| GDelay
 mergeConsts x@(NL (_, int)) =
   parallelSimp (correctConsts $ (IM.!?) $ gatherConsts int) x

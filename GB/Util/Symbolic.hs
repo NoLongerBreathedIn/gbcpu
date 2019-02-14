@@ -3,12 +3,12 @@ module GB.Util.Symbolic (Symb(..), assign, equivalent, assignList, decode,
                          nonMatch, countPoss) where
 
 import GB.Util.Base (Signalish,
-                     (&&&),
-                     (|||),
+                     (&-&),
+                     (|-|),
                      (!||),
                      (|!|),
                      (&!&),
-                     (^^^),
+                     (^-^),
                      (^!^),
                      neg,
                      fromBool,
@@ -32,38 +32,38 @@ data Symb a = Xor (Symb a) (Symb a)
   deriving (Eq, Show)
 
 instance Signalish (Symb a) where
-  (!||) = (neg .) . (. neg) . (&&&) -- x -> y <=> !(x && !y)
-  (|||) = (neg .) . (&&&) `on` neg -- x || y <=> !(!x && !y)
-  (|!|) = (&&&) `on` neg -- x |!| y <=> !x && !y
-  (&!&) = (neg .) . (&&&) -- x &!& y <=> !(x && y)
-  (^!^) = (^^^) . neg -- x <-> y <=> !x ^^ y
-  mux2 m = (. (m &&&)) . (|||) . (neg m &&&)
+  (!||) = (neg .) . (. neg) . (&-&) -- x -> y <=> !(x && !y)
+  (|-|) = (neg .) . (&-&) `on` neg -- x || y <=> !(!x && !y)
+  (|!|) = (&-&) `on` neg -- x |!| y <=> !x && !y
+  (&!&) = (neg .) . (&-&) -- x &!& y <=> !(x && y)
+  (^!^) = (^-^) . neg -- x <-> y <=> !x ^^ y
+  mux2 m = (. (m &-&)) . (|-|) . (neg m &-&)
   fromBool = Inj
   neg Unknown = Unknown
   neg (Not x) = x -- !!x <=> x
   neg (Inj x) = Inj (not x) -- !T <=> F, !F <=> T
   neg x = Not x
-  Inj True &&& x = x -- T && x <=> x
-  Inj False &&& _ = Inj False -- F && x <=> F
-  x &&& Inj True = x -- x && T <=> x
-  _ &&& Inj False = Inj False -- x && F <=> F
-  Unknown &&& _ = Unknown
-  _ &&& Unknown = Unknown
-  x &&& y = And x y
-  Unknown ^^^ _ = Unknown
-  _ ^^^ Unknown = Unknown
-  Inj True ^^^ x = neg x -- T ^^ x <=> !x
-  Inj False ^^^ x = x -- F ^^ x <=> x
-  x ^^^ Inj True = neg x -- x ^^ T <=> !x
-  x ^^^ Inj False = x -- x ^^ F <=> x
-  Not x ^^^ y = neg (x ^^^ y) -- !x ^^ y <=> !(x ^^ y)
-  x ^^^ Not y = neg (x ^^^ y) -- x ^^ !y <=> !(x ^^ y)
-  x ^^^ y = Xor x y
+  Inj True &-& x = x -- T && x <=> x
+  Inj False &-& _ = Inj False -- F && x <=> F
+  x &-& Inj True = x -- x && T <=> x
+  _ &-& Inj False = Inj False -- x && F <=> F
+  Unknown &-& _ = Unknown
+  _ &-& Unknown = Unknown
+  x &-& y = And x y
+  Unknown ^-^ _ = Unknown
+  _ ^-^ Unknown = Unknown
+  Inj True ^-^ x = neg x -- T ^^ x <=> !x
+  Inj False ^-^ x = x -- F ^^ x <=> x
+  x ^-^ Inj True = neg x -- x ^^ T <=> !x
+  x ^-^ Inj False = x -- x ^^ F <=> x
+  Not x ^-^ y = neg (x ^-^ y) -- !x ^^ y <=> !(x ^^ y)
+  x ^-^ Not y = neg (x ^-^ y) -- x ^^ !y <=> !(x ^^ y)
+  x ^-^ y = Xor x y
   huh = Unknown
 
 assign :: (Signalish b) => (a -> b) -> Symb a -> b
-assign f (Xor x y) = assign f x ^^^ assign f y
-assign f (And x y) = assign f x &&& assign f y
+assign f (Xor x y) = assign f x ^-^ assign f y
+assign f (And x y) = assign f x &-& assign f y
 assign f (Not x) = neg (assign f x)
 assign _ (Inj x) = fromBool x
 assign _ Unknown = huh
@@ -144,9 +144,9 @@ decTok = do
     h <- gets head
     modify' tail
     case h of
-      '&' -> liftM2 (&&&) <$> decTok <*> decTok
-      '|' -> liftM2 (|||) <$> decTok <*> decTok
-      '^' -> liftM2 (^^^) <$> decTok <*> decTok
+      '&' -> liftM2 (&-&) <$> decTok <*> decTok
+      '|' -> liftM2 (|-|) <$> decTok <*> decTok
+      '^' -> liftM2 (^-^) <$> decTok <*> decTok
       ' ' -> decTok
       'x' -> return $ Just Unknown
       '!' -> fmap neg <$> decTok
@@ -160,7 +160,7 @@ decodeMany = evalState $ multi decTok
 nonMatch :: Symb a -> Symb a -> Symb a
 nonMatch Unknown _ = Inj False
 nonMatch _ Unknown = Inj False
-nonMatch a b = a ^^^ b
+nonMatch a b = a ^-^ b
 
 countPoss :: (Eq a) => [a] -> Symb a -> Integer
 countPoss _ Unknown = error "Hey, tried to count unknown!"

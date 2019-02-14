@@ -39,9 +39,9 @@ correction st inst int = let zz = compz (Symb 'f') (Symb 'k') (Symb 'l')
                                (Symb 'p') (Symb 'q') (Symb 'C') (Symb 'Z') in
                            assignList (zip ['f'..'t'] $ st ++ inst) .
                            assignList [('y', zz), ('z', neg zz), ('I', int),
-                                       ('u', Symb 'o' &&& Symb 'p' &&&
+                                       ('u', Symb 'o' &-& Symb 'p' &-&
                                              neg (Symb 'q')),
-                                       ('v', Symb 'r' &&& Symb 's' &&&
+                                       ('v', Symb 'r' &-& Symb 's' &-&
                                              neg (Symb 't'))]
 
 newtype PairFunc f g a = PF {unPF :: (f a, g a)}
@@ -152,10 +152,10 @@ test tc@(TestCase name state inst ifl cnd mi ns bm) =
         (tr, bf) = testA name cnd' a b c d
         bt = foldl' (flip ((+) . ifElse 0 1 . (== Unknown))) 0 $
           a ++ flattenmi c
-        sf = countPoss bm $ cnd' &&& ors nonm
+        sf = countPoss bm $ cnd' &-& ors nonm
         nonm = zipWith nonMatch a b ++ flattenmi (liftA2 nonMatch c d)
         st = countPoss bm cnd'
-        sbf = sum $ countPoss bm . (cnd' &&&) <$> nonm
+        sbf = sum $ countPoss bm . (cnd' &-&) <$> nonm
         sbt = bt * st
 
 bmt :: Int
