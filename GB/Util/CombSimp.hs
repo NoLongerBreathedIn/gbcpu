@@ -24,16 +24,16 @@ computeReps :: IntMap Gate -> IntMap (Symb (Either DffP SR))
 
 look :: IntMap (Symb (Either a SR)) -> SR -> Symb (Either a SR)
 
-computeReps = fix . flip (IM.mapWithKey . compGate) where
+computeReps = fix . flip (IM.map . compGate) where
   hBin BAnd = (&-&)
   hBin BOr = (|-|)
   hBin BXor = (^-^)
   hBin BImpl = (!||)
   compGate _ (GConst x) = Inj x
-  compGate m (GUnop f x) = Inj f ^^^ look m x
-  compGate m (GBinop f o x y) = Inj f ^^^ on (hBin o) (look m) x y
+  compGate m (GUnop f x) = Inj f ^-^ look m x
+  compGate m (GBinop f o x y) = Inj f ^-^ on (hBin o) (look m) x y
   compGate m (GMux f0 f1 s d0 d1) =
-    mux2 (look m s) (Inj f0 ^^^ look m d0) (Inj f1 ^^^ look m d1)
+    mux2 (look m s) (Inj f0 ^-^ look m d0) (Inj f1 ^-^ look m d1)
   compGate _ (GDff fw w d) = Symb $ Left (Just (Nothing, fw, w), d)
   compGate _ (GDffZ fw fz zs w z d) =
     Symb $ Left (Just (Just (fz, zs, Just z), fw, w), d)
@@ -97,8 +97,8 @@ simpBAnd fl fr f ll rr l r
   | equivalent (ll' !|| rr') (Inj True) = Just $ GUnop (f /= fl) l
   | equivalent (rr' !|| ll') (Inj True) = Just $ GUnop (f /= fr) r
   | otherwise = Nothing
-  where ll' = Inj fl ^^^ ll
-        rr' = Inj fr ^^^ rr
+  where ll' = if fl then neg ll else ll
+        rr' = if fr then neg rr else rr
 
 decAnd :: Bool -> Bool -> Bool -> SR -> SR -> Gate
 decAnd False False = flip GBinop BAnd
@@ -149,7 +149,7 @@ simpMux f0 f1 ss dd0 dd1 s d0 d1
       Just $ psimpBAnd (not f0) (not f1) True dd0 dd1 d0 d1
   | otherwise = Nothing
   where
-    ddf = dd0' ^^^ dd1'
+    ddf = dd0' ^-^ dd1'
     dd0' = if f0 then neg dd0 else dd0
     dd1' = if f1 then neg dd1 else dd1
 

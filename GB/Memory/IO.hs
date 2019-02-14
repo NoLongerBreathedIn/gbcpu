@@ -16,15 +16,13 @@ joypad_mix :: [Signal] -> [Signal] -> [Signal]
 
 -- down up left right start select b a
 joypad_mix [_, e5, e4] =
-  uncurry zipWith (&-&) . (fmap (e4 |-|) *** fmap (e5 |-|)) . splitAt 4
+  uncurry (zipWith (&-&)) . (fmap (e4 |-|) *** fmap (e5 |-|)) . splitAt 4
 
 joypad buttons_out =
   (0, \_ _ co ci w _ wdata ->
       let es = register co ci w (take 2 $ drop 2 wdata)
-          rest = uncurry zipWith (&-&) fmap (e4 |-|) *** fmap (e5 |-|) $
-            splitAt 4 buttons
-      in (replicate 2 high ++ es ++ rest,
-          fallingEdge (ands rest) : es))
+      in (replicate 2 high ++ es ++ buttons_out,
+          fallingEdge (ands buttons_out) : es))
 
 serial :: Signal -> Signal -> [HMemSpec]
 
@@ -50,7 +48,8 @@ serialControl cgb sc co ci w z wd =
     drop 1 acks ++ [high]
   tck = transfer !|| mux2 ckt sc (mux2 cksp (head acks) (acks !! 5))
   counter = registerz tcko tcki transfer z $
-            ((counter !! 2) ((counter !! 1) !|| head counter)) : take 2 counter
+            ((counter !! 2) ^-^ ((counter !! 1) !|| head counter)) :
+            take 2 counter
   transfin = delay $ transfer &-& nands counter
 
 serialRegister [_, _, transfer, tcko, tcki] si co ci w wd =

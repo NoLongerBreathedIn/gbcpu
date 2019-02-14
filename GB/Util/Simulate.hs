@@ -1,5 +1,5 @@
 {-# LANGUAGE TupleSections #-}
-module Simulate (SNL, simReadyNL, extractOutputs,
+module GB.Util.Simulate (SNL, simReadyNL, extractOutputs,
                  simulate, simRep, simulateOutputs, simRepOutputs) where
 
 import qualified Data.IntMap.Lazy as IM
@@ -17,15 +17,17 @@ import Control.Monad
 import Data.Monoid
 import Data.Traversable
 import Control.Applicative
+import Data.Tuple
+import Data.Function
 
 type GateEval =
   (SR -> Maybe Bool) -> (SR -> Maybe Bool) -> Maybe Bool -> Maybe Bool
 
 newtype SNL = SNL { getSNL :: (IntMap (GateEval, Maybe Bool),
-                               Map String [(SR, Bool)]) }
+                               Map String [(Maybe Bool -> Maybe Bool, SR)]) }
 
 instance NFData SNL where
-  rnf (SNL (x, y)) = rnf (snd <$> x) `seq` rnf y
+  rnf (SNL (x, y)) = rnf (snd <$> x) `seq` rnf (fmap snd <$> y)
 
 simReadyNL :: NetList -> SNL
 extractOutputs :: Map String [Bool] -> SNL -> Map String [Maybe Bool]
@@ -34,8 +36,8 @@ extractOutputsInt :: Map String (UArray Int Bool) -> SNL ->
 simulate :: SNL -> Map String [Bool] -> [SNL]
 simRep :: SNL -> [Map String [Bool]] -> [SNL]
 -- gives just the settled versions
-simulateOutputs :: SNL -> Map String [Bool] -> Map String [Maybe Bool]
-simRepOutputs :: SNL -> [Map String [Bool]] -> Map String [Maybe Bool]
+simulateOutputs :: SNL -> Map String [Bool] -> [Map String [Maybe Bool]]
+simRepOutputs :: SNL -> [Map String [Bool]] -> [Map String [Maybe Bool]]
 
 extractOutputs = extractOutputsInt . calc
 
@@ -44,8 +46,11 @@ simOne :: Map String (UArray Int Bool) -> SNL -> Maybe SNL
 simOneInt :: Map String (UArray Int Bool) -> IntMap (GateEval, Maybe Bool) ->
              Maybe (IntMap (GateEval, Maybe Bool))
 
-simReadyNL (NetList _ o g _ _) = SNL ((, Nothing) . simGate <$> o,
-                                      M.fromList g)
+simReadyNL (NetList _ o g _ _) = SNL ((, Nothing) . simGate <$> g,
+                                      M.fromList $
+                                      second (first xorB . swap <$>) <$> o)
+
+sim :: (a -> Map String (UArray Int Bool)) -> SNL -> a -> [SNL]
 
 sim f = flip $ ((fmap fromJust . takeWhile isJust . tail) .) . (. Just) .
         iterate . (=<<) . simOne . f
@@ -55,13 +60,13 @@ simInt = sim id
 pamf :: (Functor f) => f (a -> b) -> a -> f b
 pamf = flip (fmap . flip id)
 
-simOne m = SNL . uncurry (pamf . fmap (,) . simOneInt) .
+simOne m = fmap SNL . uncurry (pamf . fmap (,) . simOneInt m) .
            getSNL
 
 simulateOutputs nl m = extractOutputsInt m' <$> simInt nl m' where
   m' = calc m
-
-simRepX :: SNL -> [Map String (UArray Int Bool)] -> [a]
+  
+simRepX :: SNL -> [Map String (UArray Int Bool)] -> [SNL]
 
 simRep = (. fmap calc) . simRepX
 
@@ -88,17 +93,18 @@ within :: (Ord a) => a -> (a, a) -> Bool
 
 within b (a, c) = a <= b && b <= c
 
-lookAt gs is = uncurry $ maybe (snd . (gs IM.!?))
-               ((join .) . pamf . fmap indexSafe . (is M.!))
+lookAt gs is = uncurry $ maybe (join . fmap snd . (gs IM.!?))
+               ((join .) . pamf . fmap indexSafe . (is M.!?))
 
 indexSafe a i = if i `within` bounds a
                 then Just $ a ! i
                 else Nothing
 
-iterateOnceUntilDone f = fmap (fix $ fromMaybe <*> f) . f
+iterateOnceUntilDone :: (a -> Maybe a) -> (a -> Maybe a)
+iterateOnceUntilDone = (.) =<< fmap . fix . flip (ap . flip maybe)
 b2m = uncurry $ which Just (const Nothing) . getAny
 
-simOneInt m g = iterateOnceUntilDone $
+simOneInt m g = flip iterateOnceUntilDone g $
   b2m . \g' -> traverse (simG (lookAt g m) (lookAt g' m)) g where
   simG f f' (gg, s) = let s' = gg f f' s in (Any $ s /= s', (gg, s'))
 
@@ -174,3 +180,6 @@ dffZSim Nothing = ((maybe Nothing (which Nothing (Just False)) .) .) . muxSim
 srSim (Just True) = const $ const $ Just False
 srSim (Just False) = orSim
 srSim Nothing = (maybe Nothing (which Nothing (Just False)) .) . orSim
+
+extractOutputsInt = (. getSNL) . uncurry . ((fmap . fmap) .) . look where
+  look = ((uncurry . flip (.)) .) . flip lookAt

@@ -5,7 +5,7 @@ module GB.Lava.Signal (Signal, Sig(..),
                        inv, and2, or2, xor2,
                        impl, nand2, nor2, xnor2,
                        mux, dff, dffZ,
-                       var, varPosn) where
+                       var, varPosn, delay) where
 
 import Data.Reify
 import Data.Traversable
@@ -75,4 +75,4 @@ dff = (Signal .) . Dff
 dffZ = ((Signal .) .) . DffZ
 var = Signal . flip Var 0
 varPosn = Signal . uncurry Var
-delay = Signal . delay
+delay = Signal . Delay

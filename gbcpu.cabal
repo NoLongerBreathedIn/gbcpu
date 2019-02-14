@@ -51,7 +51,7 @@ cabal-version:       >=1.10
 
 library
   -- Modules exported by the library.
-  exposed-modules: GB.CPU, GB.Lava.Netlist, GB.Lava.Signal, GB.Util.Symbolic, GB.Util.Clean, GB.Util.Base, GB.Util.NetList, GB.Util.CombSimp, GB.CPU.Decoder, GB.CPU.Encoder, GB.CPU.Alu, GB.Memory.HMem
+  exposed-modules: GB.CPU, GB.Lava.Netlist, GB.Lava.Signal, GB.Util.Symbolic, GB.Util.Clean, GB.Util.Base, GB.Util.NetList, GB.Util.CombSimp, GB.CPU.Decoder, GB.CPU.Encoder, GB.CPU.Alu, GB.Memory.HMem, GB.Util.Simulate, GB.Memory.IO
 
   -- Modules included in this library but not exported.
   -- other-modules:
