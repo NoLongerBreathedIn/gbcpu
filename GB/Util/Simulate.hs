@@ -95,9 +95,12 @@ indexSafe a i = if i `within` bounds a
                 then Just $ a ! i
                 else Nothing
 
+iterateOnceUntilDone f = fmap (fix $ fromMaybe <*> f) . f
+b2m = uncurry $ which Just (const Nothing) . getAny
 
-simOneInt m = fix . \g g' -> traverse (simG (lookAt g m) (lookAt g' m)) g where
-  simG f f' (g, s) = let s' = g f f' s in (Any $ s /= s', (g, s'))
+simOneInt m g = iterateOnceUntilDone $
+  b2m . \g' -> traverse (simG (lookAt g m) (lookAt g' m)) g where
+  simG f f' (gg, s) = let s' = gg f f' s in (Any $ s /= s', (gg, s'))
 
 simConst :: Bool -> GateEval
 simUnop :: Bool -> SR -> GateEval
