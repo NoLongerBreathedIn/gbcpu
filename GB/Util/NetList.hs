@@ -50,7 +50,7 @@ data NetList = NetList { inputs :: [(String, Int)],
              deriving (Generic, NFData, Show)
 
 type SR = (Maybe String, Int)
-vtype NLP = (Either String Int, Int)
+type NLP = (Either String Int, Int)
 
 data Binop = BAnd | BOr | BXor | BImpl
            deriving (Eq, Generic, NFData, Show)
