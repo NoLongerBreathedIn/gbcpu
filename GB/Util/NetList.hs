@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass, TupleSections #-}
-{-# LANGUAGE PatternSynonyms, LambdaCase #-}
+{-# LANGUAGE PatternSynonyms, LambdaCase, OverloadedStrings #-}
 
 -- TODO: Implement composition.
 module GB.Util.NetList (NetList(..), listify, showNL,
@@ -41,16 +41,17 @@ import Data.Maybe
 import GHC.Generics
 import Data.List
 import Control.DeepSeq
+import Data.Text (Text, pack, unpack)
 
-data NetList = NetList { inputs :: [(String, Int)],
-                         outputs :: [(String, [(SR, Bool)])],
+data NetList = NetList { inputs :: [(Text, Int)],
+                         outputs :: [(Text, [(SR, Bool)])],
                          gates :: IntMap Gate,
                          sigs :: IntMap [Int],
                          nGate :: Int}
              deriving (Generic, NFData, Show)
 
-type SR = (Maybe String, Int)
-type NLP = (Either String Int, Int)
+type SR = (Maybe Text, Int)
+type NLP = (Either Text Int, Int)
 
 data Binop = BAnd | BOr | BXor | BImpl
            deriving (Eq, Generic, NFData, Show)
@@ -114,13 +115,13 @@ listify :: (LavaGen a, LavaGen b) =>
            (Fixup a -> Fixup b) -> a -> b -> NetList
 addSignal :: Int -> NetList -> (NetList, Int)
 -- pass in length
-addInput :: String -> Int -> NetList -> NetList
+addInput :: Text -> Int -> NetList -> NetList
 -- name, length. Added at start.
-addOutput :: String -> Int -> NetList -> NetList
+addOutput :: Text -> Int -> NetList -> NetList
 -- name, length. Added at start.
-setOutput :: String -> Int -> NLP -> Bool -> NetList -> NetList
-setOutputs :: Map String (IntMap (NLP, Bool)) -> NetList -> NetList
-incorporate :: (String -> [Maybe NLP]) -> NetList -> NetList -> NetList
+setOutput :: Text -> Int -> NLP -> Bool -> NetList -> NetList
+setOutputs :: Map Text (IntMap (NLP, Bool)) -> NetList -> NetList
+incorporate :: (Text -> [Maybe NLP]) -> NetList -> NetList -> NetList
 -- Port map, part, whole.
 -- Part should have no missing pieces.
 compress :: NetList -> NetList
@@ -159,13 +160,13 @@ wires = \case
   GSR _ _ _ s r -> [s, r]
   GDelay s -> [s]
 
-detOuts :: [((String, Int), Int)] -> [(String, Int)] ->
-           [(String, [(SR, Bool)])]
+detOuts :: [((Text, Int), Int)] -> [(Text, Int)] ->
+           [(Text, [(SR, Bool)])]
 detGates :: [(Int, Sig Int)] -> IntMap Gate
 
 listify f a b = compress $ NetList {
-  inputs = LNL.sigs a,
-  outputs = detOuts outs $ LNL.sigs b,
+  inputs = first pack <$> LNL.sigs a,
+  outputs = detOuts (first (first pack) <$> outs) $ first pack <$> LNL.sigs b,
   gates = detGates gates,
   sigs = IM.empty,
   nGate = 0 }
@@ -185,16 +186,16 @@ detGates = fmap detGate . IM.fromList where
   detGate (And a b) = on GAnd foo a b
   detGate (Or a b) = on GOr foo a b
   detGate (Xor a b) = on GXor foo a b
-  detGate (Var n i) = Id (Just n, i)
+  detGate (Var n i) = Id (Just $ pack n, i)
   detGate (Dff w d) = (GDff False `on` foo) w d
   detGate (DffZ w z d) = (GDffZ False False False `on3` foo) w z d
   detGate (Mux s d0 d1) = on3 MuxS foo s d0 d1
   detGate (Delay x) = GDelay $ foo x
   
-showPort :: String -> (String, Int) -> String
+showPort :: String -> (Text, Int) -> String
 showSignal :: Int -> String
 dumpComponent :: (SR, Gate) -> String
-dumpFancy :: (String, [(SR, Bool)]) -> [String]
+dumpFancy :: (Text, [(SR, Bool)]) -> [String]
 
 showNL (NetList i o g _ _) n = unlines $
   unwords ["entity", n, "is"]:thePorts ++
@@ -211,19 +212,20 @@ showNL (NetList i o g _ _) n = unlines $
        "end;",
        ""]
 
-showPort ty (n, l) = "    " ++ unwords [n, ":", ty, "bit"] ++
+showPort ty (n, l) = "    " ++ unwords [unpack n, ":", ty, "bit"] ++
                      if l /= 1
                      then unwords ["_vector", '(':show (l - 1), "downto 0);"]
                      else ";"
 showSignal = ('v':) . show
 
 showSR :: SR -> String
-showSR = uncurry $ maybe showSignal $ (. (('(':) . (++ ")") . show)) . (++)
+showSR = uncurry $ maybe showSignal $
+  (. (('(':) . (++ ")") . show)) . (++) . unpack
 showSRBlob :: SR -> String
-showSRBlob = uncurry $ maybe showSignal $ (. (('_':) . show)) . (++)
+showSRBlob = uncurry $ maybe showSignal $ (. (('_':) . show)) . (++) . unpack
 showGateType :: Gate -> String
 
-dumpOneFancy :: String -> Int -> (SR, Bool) -> String
+dumpOneFancy :: Text -> Int -> (SR, Bool) -> String
 dumpFancy (n, g) = zipWith (dumpOneFancy n) [0..] $
                    reverse g
 dumpOneFancy sn si (t, z) =
@@ -345,7 +347,7 @@ compress (NetList i o g s _) = NetList i o' g' s' m where
   g' = IM.mapKeys (finMap IM.!) $ rewire rewireSR <$> g
   s' = fmap (finMap IM.!) <$> s
 
-verifyInputs :: Map String Int -> All
+verifyInputs :: Map Text Int -> All
 
 verifyInputs = foldMap (All . (>= 0))
 
@@ -364,17 +366,17 @@ verify (NetList i o g s m) = getAll $ verifyInputs i' <>
     liftA2 (&&) (>= 0) . (>) . flip (M.findWithDefault 0) i'
 
 
-mkSR :: String -> Int -> SR
+mkSR :: Text -> Int -> SR
 i2SR :: Int -> SR
 mkSR = (,) . Just
 i2SR = (Nothing,)
 
 makeGateSet :: (Int -> Gate) -> Int -> IntMap Gate
 makeGateSet = (. (IS.fromAscList . enumFromTo 0 . (-1+))) . IM.fromSet
-outputsOf :: String -> Int -> [(String, [(SR, Bool)])]
+outputsOf :: Text -> Int -> [(Text, [(SR, Bool)])]
 outputsOf s i = [(s, (, False) . i2SR <$> droppingList i)]
 
-standard :: Int -> [(String, Int)] -> String -> (Int -> Gate) -> NetList
+standard :: Int -> [(Text, Int)] -> Text -> (Int -> Gate) -> NetList
 
 standard n i s f = NetList i (outputsOf s n) (makeGateSet f n) IM.empty n
 

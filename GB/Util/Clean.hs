@@ -31,6 +31,7 @@ import Data.Tuple
 import Control.Monad.Writer.Strict
 import Control.Monad.Trans.Maybe
 import Control.Monad.Identity
+import Data.Text (Text)
 
 type PGate = Either SR Gate
 
@@ -41,7 +42,7 @@ instance Semigroup DiffSet where
 instance Monoid DiffSet where
   mempty = DiffSet IS.empty
 
-newtype NL g = NL { getNL :: ([(String, [(SR, Bool)])], IntMap g) }
+newtype NL g = NL { getNL :: ([(Text, [(SR, Bool)])], IntMap g) }
   deriving (Show)
 
 cleanNLWith :: [NL Gate -> Maybe (NL Gate)] -> NetList -> NetList
@@ -324,8 +325,8 @@ removeNotsAndWires = \x@(NL (_, int)) -> do
     rnw f = boolToMaybe . getCompose . fmap NL . uncurry (liftA2 (,)) .
             (rnw' f *** IM.traverseWithKey ((Compose .) . firstPart f)) .
             getNL
-    rnw' :: (SR -> Maybe (SR, Bool)) -> [(String, [(SR, Bool)])] ->
-            Compose ((,)Any) ((,)IntSet) [(String, [(SR, Bool)])]
+    rnw' :: (SR -> Maybe (SR, Bool)) -> [(Text, [(SR, Bool)])] ->
+            Compose ((,)Any) ((,)IntSet) [(Text, [(SR, Bool)])]
     rnw' f = fmap ddComp .
       traverse (Compose . fmap (IS.empty,) . ap maybeToBool (hnw f)) . dComp
     dComp = Compose . Compose
@@ -339,8 +340,8 @@ removeNotsAndWires = \x@(NL (_, int)) -> do
       | otherwise = False
       where s' = squareMap s
     squareMap = (IM.!?) >>= IM.mapMaybe
-    flipOuts :: IntSet -> [(String, [(SR, Bool)])] ->
-                [(String, [(SR, Bool)])]
+    flipOuts :: IntSet -> [(Text, [(SR, Bool)])] ->
+                [(Text, [(SR, Bool)])]
     flipOuts = (ddComp .) . (. dComp) . fmap . flopOut
     flopOut :: IntSet -> (SR, Bool) -> (SR, Bool)
     flopOut = uncurry . liftA2 (.) (,) . uncurry .
