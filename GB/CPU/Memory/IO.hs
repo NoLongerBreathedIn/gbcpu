@@ -50,7 +50,7 @@ serialControl cgb sc co ci w z wd =
   counter = registerz tcko tcki transfer z $
             ((counter !! 2) ^-^ ((counter !! 1) !|| head counter)) :
             take 2 counter
-  transfin = delay $ transfer &-& nands counter
+  transfin = tcki &-& nors counter &-& transfer
 
 serialRegister [_, _, transfer, tcko, tcki] si co ci w wd =
   (regOut, [head regOut]) where

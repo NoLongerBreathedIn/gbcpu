@@ -51,7 +51,7 @@ cabal-version:       >=1.10
 
 library
   -- Modules exported by the library.
-  exposed-modules: GB.CPU, GB.Lava.Netlist, GB.Lava.Signal, GB.Util.Symbolic, GB.Util.Clean, GB.Util.Base, GB.Util.NetList, GB.Util.CombSimp, GB.CPU.Decoder, GB.CPU.Encoder, GB.CPU.Alu, GB.Memory.HMem, GB.Util.Simulate, GB.Memory.IO
+  exposed-modules: GB.CPU.Core, GB.Lava.Netlist, GB.Lava.Signal, GB.Util.Symbolic, GB.Util.Clean, GB.Util.Base, GB.Util.NetList, GB.Util.CombSimp, GB.CPU.Core.Decoder, GB.CPU.Core.Encoder, GB.CPU.Core.Alu, GB.CPU.Memory.HMem, GB.Util.Simulate, GB.CPU.Memory.IO, GB.Misc.Simulator, GB.Misc.Cartridge, GB.CPU.CoreShim
 
   -- Modules included in this library but not exported.
   -- other-modules:
@@ -60,7 +60,7 @@ library
   other-extensions: DeriveAnyClass, DeriveFunctor, DeriveGeneric, FlexibleContexts, FlexibleInstances, ImplicitParams, LambdaCase, PatternSynonyms, TupleSections, TypeFamilies
 
   -- Other library packages from which modules are imported.
-  build-depends: yaml >=0.11, text >=1.2, aeson >=1.4, base >=4.11 && <4.12, array >=0.5, deepseq >= 1.4, mtl >=2.2, data-reify >=0.6, transformers >=0.5, containers >=0.5
+  build-depends: yaml >=0.11, text >=1.2, aeson >=1.4, base >=4.11 && <4.12, array >=0.5, deepseq >= 1.4, mtl >=2.2, data-reify >=0.6, transformers >=0.5, containers >=0.5, bytestring >=0.10
   -- Directories containing source files.
   -- hs-source-dirs:
 
@@ -70,10 +70,10 @@ library
 
 executable cpu_test
   -- .hs or .lhs file containing the Main module.
-  main-is: GB/CPU/Test.hs
+  main-is: GB/CPU/Core/Test.hs
 
   -- Modules included in this executable, other than Main.
-  other-modules: GB.CPU.Encoder, GB.CPU.Decoder, GB.Util.Symbolic, GB.Util.Base, GB.CPU.Alu, GB.Lava.Signal
+  other-modules: GB.CPU.Core.Encoder, GB.CPU.Core.Decoder, GB.Util.Symbolic, GB.Util.Base, GB.CPU.Alu, GB.Lava.Signal
 
   -- LANGUAGE extensions used by modules in this package.
   other-extensions: DeriveFunctor, FlexibleInstances, ImplicitParams, OverloadedStrings, TupleSections, LambdaCase

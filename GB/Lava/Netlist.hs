@@ -89,7 +89,8 @@ foo6 :: (a, b, c, d, e, f) -> (a, (b, c, d, e, f))
 foo6 (a, b, c, d, e, f) = (a, (b, c, d, e, f))
 foo7 :: (a, b, c, d, e, f, g) -> (a, (b, c, d, e, f, g))
 foo7 (a, b, c, d, e, f, g) = (a, (b, c, d, e, f, g))
-
+foo8 :: (a, b, c, d, e, f, g, h) -> (a, (b, c, d, e, f, g, h))
+foo8 (a, b, c, d, e, f, g, h) = (a, (b, c, d, e, f, g, h))
 
 instance (LavaGen a, LavaGen b, LavaGen c) => LavaGen (a, b, c) where
   type Fixup (a, b, c) = (Fixup a, Fixup b, Fixup c)
@@ -134,3 +135,14 @@ instance (LavaGen a, LavaGen b, LavaGen c, LavaGen d,
                                  fixup d, fixup e, fixup f, fixup g)
   sigs = sigs . foo7
   destruct = (. foo7) . destruct
+
+instance (LavaGen a, LavaGen b, LavaGen c, LavaGen d,
+          LavaGen e, LavaGen f, LavaGen g, LavaGen h) =>
+         LavaGen (a, b, c, d, e, f, g, h) where
+  type Fixup (a, b, c, d, e, f, g, h) = (Fixup a, Fixup b, Fixup c, Fixup d,
+                                         Fixup e, Fixup f, Fixup g, Fixup h)
+  struct = (. foo8) . struct . foo8
+  fixup (a, b, c, d, e, f, g, h) = (fixup a, fixup b, fixup c,
+                                 fixup d, fixup e, fixup f, fixup g, fixup h)
+  sigs = sigs . foo8
+  destruct = (. foo8) . destruct

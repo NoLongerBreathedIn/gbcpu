@@ -1,15 +1,15 @@
 {-# LANGUAGE DeriveFunctor #-}
 
-module GB.CPU.Decoder (decode,
-                       registers,
-                       regOutput,
-                       flags,
-                       carry,
-                       MicroInstruction(..),
-                       CPUInputs(..),
-                       RegisterOutputs(..),
-                       RegisterSet,
-                       CPURegisters(fIE, fpIE)) where
+module GB.CPU.Core.Decoder (decode,
+                            registers,
+                            regOutput,
+                            flags,
+                            carry,
+                            MicroInstruction(..),
+                            CPUInputs(..),
+                            RegisterOutputs(..),
+                            RegisterSet,
+                            CPURegisters(fIE, fpIE)) where
 
 import GB.Lava.Signal
 import GB.CPU.Alu

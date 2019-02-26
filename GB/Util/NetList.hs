@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass, TupleSections #-}
 {-# LANGUAGE PatternSynonyms, LambdaCase, OverloadedStrings #-}
 
--- TODO: Implement composition.
 module GB.Util.NetList (NetList(..), listify, showNL,
                         Gate(..), Binop(..), SR, NLP,
                         pattern GAnd, pattern GNand,
@@ -13,7 +12,7 @@ module GB.Util.NetList (NetList(..), listify, showNL,
                         pattern High, pattern Low,
                         pattern Id, pattern Not,
                         addSignal, addInput, addOutput, setOutput,
-                        setOutputs, removeSignals,
+                        setOutputs, removeSignals, removeSignal,
                         incorporate, compress, verify, nlEmpty, nlDelay,
                         nlUnop, nlBinop, nlConst, nlMux, nlDff, nlDffZ, nlSR,
                         countTransistors, wires,
@@ -50,7 +49,7 @@ data NetList = NetList { inputs :: [(Text, Int)],
                          nGate :: Int}
              deriving (Generic, NFData, Show)
 
-type SR = (Maybe Text, Int)
+vtype SR = (Maybe Text, Int)
 type NLP = (Either Text Int, Int)
 
 data Binop = BAnd | BOr | BXor | BImpl
@@ -146,6 +145,7 @@ nlSR :: Int -> Bool -> Bool -> Bool -> NetList
 nlDelay :: Int -> NetList -- input: i
 
 removeSignals :: NetList -> NetList
+removeSignal :: Int -> NetList -> NetList
 
 countTransistors :: NetList -> Int
 
@@ -247,7 +247,7 @@ showGateType (GNor _ _) = "norG"
 showGateType (GXor _ _) = "xorG"
 showGateType (GIff _ _) = "xnorG"
 showGateType (GImpl _ _) = "implG"
-showGateType (GNimpl _ _) = "nimplG"
+  showGateType (GNimpl _ _) = "nimplG"
 showGateType (MuxS _ _ _) = "mux2"
 showGateType (MuxNS _ _ _) = "muxnk"
 showGateType (MuxSN _ _ _) = "muxkn"
@@ -266,7 +266,7 @@ showGateType (GSR s r q _ _) = "srff_s" ++ if' s 'l' 'h' : "_r" ++
 
 addSignal n (NetList i o g s m) = (NetList i o g s' (m + n), sn)
   where s' = IM.insert sn [m .. m + n - 1] s
-        sn = maybe 0 ((+1) . fst) $ IM.lookupMin s
+        sn = maybe 0 ((+1) . fst) $ IM.lookupMax s
 
 nlpToSR :: (Int -> [Int]) -> NLP -> SR
 nlpToSR = uncurry . either ((,) . Just) . ((((Nothing,) .) . (!!)) .)
@@ -334,6 +334,7 @@ addMap i = Endo $ \(a, m) -> a `seq`
                              else (a + 1, IM.insert i a m)
 
 removeSignals (NetList i o g _ _) = compress $ NetList i o g IM.empty 0
+removeSignal n (NetList i o g s m) = NetList i o g (IM.delete n s) m
 
 compress (NetList i o g s _) = NetList i o' g' s' m where
   theMaps = foldMap (foldMap (doSR . fst) . snd) o <>

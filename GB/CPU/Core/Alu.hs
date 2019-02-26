@@ -1,4 +1,4 @@
-module GB.CPU.Alu (alu, daa) where
+module GB.CPU.Core.Alu (alu, daa) where
 import GB.Util.Base
 import Data.Function (on)
 

@@ -40,7 +40,7 @@ data SNL = SNL {
   snlKnown :: UArray Int Bool,
   snlOutputs :: Map Text [(SR, Bool)],
   snlUsed :: Array Int (IntSet, IntSet),
-  snlInput :: (IntSet, IntSet)
+  snlInputs :: (IntSet, IntSet)
   }
 
 simReadyNL :: NetList -> SNL

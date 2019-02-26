@@ -3,8 +3,8 @@
 module Main where
 import GB.Util.Symbolic
 import GB.Util.Base
-import GB.CPU.Decoder (MicroInstruction(..), CPUInputs(..))
-import GB.CPU.Encoder
+import GB.CPU.Core.Decoder (MicroInstruction(..), CPUInputs(..))
+import GB.CPU.Core.Encoder
 import Data.Yaml hiding (encode, decode)
 import Data.Text (unpack)
 import Data.Aeson.Types (typeMismatch)

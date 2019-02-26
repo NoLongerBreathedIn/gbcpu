@@ -1836,3 +1836,38 @@ Use !l&(!i|j&k) 0 !(i|l) 0 !(i|l)&j k&!l&(!i|j) !l&(!i|j&k)
 Use !i&(!k|j) !i&(!k|j) 0 !i&j j&!(i|k&l) !i&(j&k|!k&l) !i&(j&k|!(k|l))
 *** 111ijkl (jp/kl j, call/kl j)
 Use !j|z !j|z !j i&!j !j|i&z j?z:k !j&l
+* CPU shim
+** What are the two clocks for?
+** Four steps:
+read instruction
+read data
+execute
+write data
+** So:
+stage 0:
+ADD <- IP
+read <- 1
+at 0-1:
+I <- DAT
+stage 1:
+ADD <- MAR
+read <- 1
+at 1-3:
+MR <- DAT
+stage 3:
+at 3-2:
+clock CPU I
+stage 2:
+ADD <- MAR
+DAT <- MW
+write <- wt
+at 2-0:
+clock CPU O
+* DMA
+Read write read write.
+* HDMA
+Might be a bit difficult.
+* How to handle sound?
+* IR port?
+* Video stuff, how does it work?
+Take over VRAM when needed.

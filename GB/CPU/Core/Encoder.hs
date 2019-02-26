@@ -3,9 +3,9 @@
 -- Probably should turn this off to check, passing through
 -- grep 'not initialised:' | grep -v ': aluL$'
 
-module GB.CPU.Encoder (encode, compz) where
+module GB.CPU.Core.Encoder (encode, compz) where
 
-import GB.CPU.Decoder hiding (decode, registers, output, CPURegisters)
+import GB.CPU.Core.Decoder hiding (decode, registers, output, CPURegisters)
 import GB.Util.Base
 import Control.Applicative
 import Control.Arrow (first, second)
