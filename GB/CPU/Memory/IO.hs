@@ -1,4 +1,4 @@
-module GB.Memory.IO where
+module GB.CPU.Memory.IO where
 
 import Data.Word
 import GB.Util.Base

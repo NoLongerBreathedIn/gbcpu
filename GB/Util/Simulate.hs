@@ -22,6 +22,7 @@ import Control.Applicative
 import Data.Tuple
 import Data.Function
 import Control.Monad.ST
+import Control.Monad.State
 import Data.Array.ST
 import Data.Text (Text)
 import Data.Array.Unsafe
@@ -44,7 +45,7 @@ data SNL = SNL {
   }
 
 simReadyNL :: NetList -> SNL
-simulate :: Map Text [Bool] -> SNL -> (SNL, Map Text [Maybe Bool])
+simulate :: Map Text [Bool] -> State SNL (Map Text [Maybe Bool])
 
 modifyArray :: (MArray a e m, Ix i, NFData e) => a i e -> i -> (e -> e) -> m ()
 simGate :: Gate -> Either SR GateEval
@@ -180,7 +181,7 @@ extractOutputsInt m (SNL _ r k o _ _) =
   lookb t i f = (\l -> if i `within` bounds l then
                   Just $ f /= (l ! i) else Nothing) =<< M.lookup t m
 
-simulate m nl = (,) <*> extractOutputsInt m' $ simInt m' nl where
+simulate m = modify' (simInt m') >> gets (extractOutputsInt m') where
   m' = fixupB <$> m
 
 look :: Map Text (UArray Int Bool) -> STUArray s Int Bool ->

@@ -1,1 +1,1 @@
-module GB.Misc.Simulator where
+module GB.Misc.Simulator (FullGB, tickClocks) where
