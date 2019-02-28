@@ -1,5 +1,6 @@
 {-# LANGUAGE TupleSections, LambdaCase, RankNTypes #-}
-module GB.Util.SimState (SNL, simReadyNL, simulate) where
+module GB.Util.SimState (SNL, simReadyNL, simulate, checkOutputs,
+                         simulate_) where
 
 import qualified Data.IntMap.Lazy as IM
 import Data.IntMap.Lazy (IntMap)
@@ -8,7 +9,6 @@ import Data.Map (Map)
 import qualified Data.IntSet as IS
 import Data.IntSet (IntSet)
 import Data.Array.IArray
-import Data.Array.Unboxed
 import GB.Util.NetList
 import Data.Maybe
 import Control.Arrow
@@ -22,15 +22,15 @@ import Control.Applicative
 import Data.Tuple
 import Data.Function
 import Control.Monad.ST
-import Control.Monad.State
+import Control.Monad.State.Strict
+import Data.Function
 import Data.Array.ST
 import Data.Text (Text)
 import Data.Array.Unsafe
 import System.Random
 import Data.Bits
 
-type GateEval s = (SR -> ST s Bool) -> Bool -> ST s Bool
-type OutEval s = Map Text (UArray Int Bool) -> ST s Bool
+type GateEval s = Bool -> ST s Bool
 
 (<$$>) :: (Functor f) => f (a -> b) -> a -> f b
 (<$$>) = flip (fmap . flip id)
@@ -40,11 +40,9 @@ pamf = flip (fmap . flip id)
 
 data SNL s = SNL {
   snlGates :: Array Int (GateEval s),
-  snlOutputs :: Map Text [OutEval s],
+  snlOutputs :: Map Text [ST s Bool],
   snlUsed :: Array Int (IntSet, IntSet),
-  snlInputs :: (IntSet, IntSet),
-  snlInputLens :: Map Text Int,
-  randBits :: STRef s [Bool],
+  snlInputs :: Map Text (Array Int (IntSet, IntSet), STUArray s Int Bool),
   snlOuts :: STUArray s Int Bool
   }
 
@@ -55,53 +53,63 @@ listIntBits =  (<$> enumFromTo 0 (finiteBitSize (0 :: Int) - 1)) . testBit
 
 simReadyNL :: (RandomGen g) => g -> NetList -> ST s (SNL s)
 simulate :: Map Text [Bool] -> SNL s -> ST s (Map Text [Bool])
+checkOutputs :: SNL s -> ST s (Map Text [Bool])
+simulate_ :: Map Text [Bool] -> SNL s -> ST s ()
 
-modifyArray :: (MArray a e m, Ix i, NFData e) => a i e -> i -> (e -> e) -> m ()
-simGate :: Gate -> GateEval s
-simOut :: STUArray s Int Bool -> Bool -> Maybe Text -> Int -> OutEval s
-computeRefs :: Int -> IntMap Gate -> Array Int (IntSet, IntSet)
-makeGateList :: Int -> IntMap Gate -> Array Int (GateEval s)
-computeInputs :: IntMap Gate -> (IntSet, IntSet)
-fixupB :: [Bool] -> UArray Int Bool
+simulate m nl = simulate m nl >> checkOutputs nl
 
-fixupB xs = listArray (0, length xs - 1) (reverse xs)
+modifyArray :: (MArray a e m, Ix i, NFData e) => (e -> e) -> a i e -> i -> m ()
+simGate :: (SR -> ST s Bool) -> Gate -> GateEval s
+simOut :: STUArray s Int Bool -> Map Text (STU s Array Int Bool) ->
+          Bool -> SR -> ST s Bool
+computeRefsInputs :: Int -> IntMap Gate -> Map Text Int ->
+                     (Array Int (IntSet, IntSet),
+                      Map Text (Array Int (IntSet, IntSet)))
+makeGateList :: Int -> IntMap Gate -> (Gate -> GateEval s) ->
+                Array Int (GateEval s)
+computeInputs :: IntMap Gate -> Map Text Int ->
+                 Map Text (Array Int (IntSet, IntSet))
+fillInputs :: Map Text Int -> State [Bool] (Map Text (UArray Int Bool))
+
+fillInputs = traverse $ \i -> state $ listArray (0, i - 1) &&& drop i
+
+look :: Map Text (STUArray s Int Bool, a) -> STUArray s Int Bool -> SR ->
+        ST s Bool
+
+look m r = uncurry $ readArray . maybe r (m M.!)
 
 simReadyNL rng (NetList i o g _ m) = do
   out <- newListArray (0, m - 1) rBits
-  let outputs = fmap (uncurry $ flip $ uncurry . simOut out) <$> M.fromList o
-  SNL gates outputs used inputs inputLens <$> newSTRef rBits' <$$> out
+  inp <- traverse unsafeThaw cinput
+  let outputs = fmap (uncurry $ flip $ simOut out inp) <$> M.fromList o
+  let gates = makeGateList m g $ simGate $ look inp out
+  return $ SNL gates outputs used (M.intersectionWith (,) inputs inp) out
   where
-    gates = makeGateList m g
-    used = computeRefs m g
-    inputs = computeInputs g
-    inputLens = M.fromList i
-    rBits' = drop m rBits
+    iLen = M.fromList i
+    (used, inputs) = computeRefsInputs m g iLen
+    cinput = evalState (fillInputs iLen) $ drop m rBits
     rBits = randomBits rng
 
-makeGateList m g = runSTArray $ do
+makeGateList m g f = runSTArray $ do
   gs <- newArray_ (0, m - 1)
-  flip IM.traverseWithKey g $ \i gg -> writeArray gs i $ simGate gg
+  flip IM.traverseWithKey g $ \i gg -> writeArray gs i $ f gg
   return gs
 
-modifyArray a i f = writeArray a i =<< force . f <$> readArray a i
-
-computeRefs m g = runSTArray $ do
-  gs <- newArray (0, m - 1) (IS.empty, IS.empty)
-  flip IM.traverseWithKey g $ \i -> \case
-    GDelay (Nothing, ix) -> modifyArray gs ix (second $ IS.insert i)
-    x -> forM_ (wires x) $ uncurry $ maybe
-      (flip (modifyArray gs) $ first $ IS.insert i) (const $ const $ return ())
-  return gs
+modifyArray f a i = writeArray a i =<< force . f <$> readArray a i
   
-computeInputs = IM.foldrWithKey possAdd (IS.empty, IS.empty) where
-  possAdd i = \case
-    GDelay (Just _, _) -> second $ IS.insert i
-    g -> if any (isJust . fst) (wires g)
-         then first $ IS.insert i
-         else id
+computeRefsInputs m g l = runST $ do
+  gs <- newArray (0, m - 1) (IS.empty, IS.empty)
+  ps <- flip newArray (IS.empty, IS.empty) . (0,) . (-1+) `traverse` g
+  let insH f i = uncurry $ modifyArray (f $ IS.insert i) . maybe gs (ps M.!)
+  flip IM.traverseWithKey g $ \i -> \case
+    GDelay x -> insH second i
+    x -> forM_ (wires x) $ insH first i
+  gs' <- unsafeFreeze gs
+  ps' <- traverse unsafeFreeze ps
+  return (gs, ps)
 
-simOut a f Nothing i = const $ f' $ readArray a i
-simOut _ f (Just n) i = f' . return . (! i) . (M.! n)
+simOut a m False = uncurry $ readArray . maybe a (m M.!)
+simOut a m True = uncurry $ fmap not . readArray . maybe a (m M.!)
 
 simConst :: Bool -> GateEval
 simUnop :: Bool -> SR -> GateEval
@@ -178,51 +186,48 @@ dffZSim False = const $ const $ const False
 srSim True = const $ const False
 srSim False = orSim
 
-extractOutputsInt :: Map Text (UArray Int Bool) -> SNL s ->
-                     ST s (Map Text [Bool])
-simInt :: Map Text (UArray Int Bool) -> SNL s -> ST s ()
+simInt :: SNL s -> (IntSet, IntSet) -> ST s ()
 
-extractOutputsInt m nl = traverse ($ m) `traverse` snlOutputs nl
+checkOutputs = traverse sequenceA . snlOutputs
 
-specialMerge :: (Ord k) => Map k [a] -> Map k b -> Map k ([a], b)
-specialMerge =
-  M.mergeWithKey (const $ (Just .) . (,)) (const M.empty) (([],) <$>)
+mergeInput :: ([Bool], (Array Int (IntSet, IntSet), STUArray s Int Bool)) ->
+              ST s Foo
 
-tack :: ([Bool], Int) -> State [Bool] [Bool]
-tack (as, l) = do
-  rs <- state $ splitAt $ l - length as
-  return (rs ++ as)
+newtype Foo = Foo {getFoo :: (IntSet, IntSet)}
+instance Semigroup Foo where
+  (<>) = ((Foo . force) .) . (<>) `on` getFoo
+instance Monoid Foo where
+  mempty = Foo mempty
 
-simulate m nl = do
-  (m', rbs) <- runState (traverse tack $ specialMerge m $ snlInputLens nl) <$>
-    readSTRef (randBits nl)
-  writeSTRef (randBits nl) rbs
-  let m'' = fixupB <$> m'
-  simInt m'' nl
-  extractOutputsInt m'' nl
+simulate_ m nl =
+  simInt nl . getFoo . fold <=<
+  traverse mergeInput $ M.intersectionWith (,) m $ snlInputs nl
 
-look :: Map Text (UArray Int Bool) -> STUArray s Int Bool -> SR -> ST s Bool
-look m _ (Just n, i) = return $ (m M.! n) ! i
-
-look _ r (Nothing, i) = fromJust <$> readArray r i
-
-simStuff :: Array Int GateEval -> (SR -> ST s Bool) ->
+simStuff :: Array Int GateEval ->
             Array Int (IntSet, IntSet) ->
             STUArray s Int Bool -> (IntSet, IntSet) -> ST s ()
 
-simInt m (SNL g _ u i _ _ o) = simStuff g (look m o) u o i
+simInt = simStuff <$> snlGates <*> snlUsed <*> snlOuts
 
-forcepair :: (a, b) -> (a, b)
-forcepair x@(a, b) = a `seq` b `seq` x
-  
-simStuff g l u r = simA where
+mergeInput' :: Array Int (IntSet, IntSet) -> STUArray s Int Bool ->
+               (Int, Bool) -> ST s Foo
+
+mergeInput (n, (f, o)) =
+  foldl' (<>) mempty <$> traverse (mergeInput' f o) (zip [0..] $ reverse n)
+
+mergeInput' fs os = \(i, n) -> do
+  o <- readArray os i
+  writeArray os i n
+  return $ if o == n then mempty else Foo $ fs ! i
+
+simStuff g u r = simA where
   simA (si, sl) = if IS.null si
                   then if IS.null sl then return ()
                        else simA $ simB sl
                   else do
     let (i, si') = IS.deleteFindMin si
-    cur <- l (Nothing, i)
-    nex <- (g ! i) l cur
+    cur <- readArray r i
+    nex <- (g ! i) cur
     if cur == nex then simA (si', sl) else do
       writeArray r i nex
       let (sie, sle) = u ! i
@@ -230,12 +235,12 @@ simStuff g l u r = simA where
   simB = IS.foldr' simC $ return (IS.empty, IS.empty)
 --  simC :: Int -> ST s (IntSet, IntSet) -> ST s (IntSet, IntSet)
   simC i ss = do
-    cur <- l (Nothing, i)
-    nex <- (g ! i) l cur
+    cur <- readArray r i
+    nex <- (g ! i) cur
     if cur == nex then ss else do
       writeArray r i nex
       let (sie, sle) = u ! i
-      forcepair . ((sie <>) *** (sle <>)) <$> ss
+      force . ((sie <>) *** (sle <>)) <$> ss
 
 -- Algorithm: Mantain lists of current, next.
 -- While current nonempty, take an element from it and update that;

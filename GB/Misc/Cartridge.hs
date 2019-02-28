@@ -16,7 +16,7 @@ import Control.Applicative
 import Data.Maybe
 import Data.Bits
 
-data MBCType = MBC1 | MBC2 | MBC3 | MBC5 | MBCR
+data MBCType = MBC0 | MBC1 | MBC2 | MBC3 | MBC5 | MBCR
   deriving (Eq, Ord, Show)
 
 data ClockState = ClockState {
@@ -66,12 +66,14 @@ type RMBC s = Array Word16 (UArray Word16 Word8) ->
 type WMBC s = Array Word8 (STUArray s Word16 Word8) -> STRef s BankSelInf ->
               Word16 -> Word8 -> ST s ()
 
+readMBC0 :: RMBC s
 readMBC1 :: RMBC s
 readMBC2 :: RMBC s
 readMBC3 :: STRef s ClockState -> RMBC s
 readMBC5 :: RMBC s
 readMBCR :: RMBC s
 
+writeMBC0 :: WMBC s
 writeMBC1 :: WMBC s
 writeMBC2 :: WMBC s
 writeMBC3 :: STRef s ClockState -> WMBC s
@@ -91,6 +93,7 @@ freezeCart cart =
   traverse freeze (ramBanks' cart) <*> traverse readSTRef (clockState' cart)
 readData cart = f (romBanks' cart) (ramBanks' cart) (selInfo cart) where
   f = case mbcType' cart of
+        MBC0 -> readMBC0
         MBC1 -> readMBC1
         MBC2 -> readMBC2
         MBC3 -> readMBC3 (fromJust $ clockState' cart)
@@ -98,12 +101,13 @@ readData cart = f (romBanks' cart) (ramBanks' cart) (selInfo cart) where
         MBCR -> readMBCR
 writeData cart = f (ramBanks' cart) (selInfo cart) where
     f = case mbcType' cart of
+          MBC0 -> writeMBC0
           MBC1 -> writeMBC1
           MBC2 -> writeMBC2
           MBC3 -> writeMBC3 (fromJust $ clockState' cart)
           MBC5 -> writeMBC5
           MBCR -> writeMBCR
-isRumbling cart = if mbctype' cart /= MBCR
+isRumbling cart = if mbcType' cart /= MBCR
                   then return False
                   else flip testBit 3 . ramBank <$> readSTRef $ selectInfo cart
 

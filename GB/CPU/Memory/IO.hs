@@ -12,7 +12,7 @@ ensureLength x = elems . listArray (1,x)
 
 joypad :: [Signal] -> HMemSpec
 
-joypad_mix :: [Signal] -> [Signal] -> [Signal]
+joypad_mix :: (Signalish a) => [a] -> [a] -> [a]
 
 -- down up left right start select b a
 joypad_mix [_, e5, e4] =
@@ -44,7 +44,7 @@ serialControl cgb sc co ci w z wd =
   [cksp] = registerAWz co ciw cgb [wd !! 6]
   tcko = fallingEdge tck
   tcki = risingEdge tck
-  acks = ensureLength 7 $ registerAW co ci $ zipWith (^-^) acks $
+  acks = ensureLength 9 $ registerAW co ci $ zipWith (^-^) acks $
     drop 1 acks ++ [high]
   tck = transfer !|| mux2 ckt sc (mux2 cksp (head acks) (acks !! 5))
   counter = registerz tcko tcki transfer z $
@@ -57,3 +57,4 @@ serialRegister [_, _, transfer, tcko, tcki] si co ci w wd =
   [cko, cki] = zipWith (mux2 transfer) [co, ci &-& w] [tcko, tcki]
   regOut = ensureLength 8 $ registerAW cko cki $ zipWith (mux2 transfer) wd $
            tail regOut ++ [si]
+
