@@ -1,6 +1,6 @@
 {-# LANGUAGE TupleSections, LambdaCase, RankNTypes #-}
-module GB.Util.SimState (SNL, simReadyNL, simulate, checkOutputs,
-                         simulate_) where
+module GB.Util.SimState (SNL, simReadyNL, simulate, checkOutputs, simFull,
+                         simulate_, saveState, loadState, getInputs) where
 
 import qualified Data.IntMap.Lazy as IM
 import Data.IntMap.Lazy (IntMap)
@@ -55,6 +55,10 @@ simReadyNL :: (RandomGen g) => g -> NetList -> ST s (SNL s)
 simulate :: Map Text [Bool] -> SNL s -> ST s (Map Text [Bool])
 checkOutputs :: SNL s -> ST s (Map Text [Bool])
 simulate_ :: Map Text [Bool] -> SNL s -> ST s ()
+simFull :: SNL s -> ST s ()
+saveState :: SNL s -> ST s (UArray Int Bool)
+loadState :: SNL s -> UArray Int Bool -> ST s ()
+getInputs :: SNL s -> ST s (Map Text [Bool])
 
 simulate m nl = simulate m nl >> checkOutputs nl
 
@@ -75,6 +79,11 @@ fillInputs = traverse $ \i -> state $ listArray (0, i - 1) &&& drop i
 
 look :: Map Text (STUArray s Int Bool, a) -> STUArray s Int Bool -> SR ->
         ST s Bool
+
+saveState = freeze . snlOuts
+loadState = (. assocs) . traverse_ . uncurry . writeArray . snlOuts
+-- inefficient, would rather do some sort of memcpy, but not sure how
+getInputs = traverse (fmap reverse . getElems . snd) . snlInputs
 
 look m r = uncurry $ readArray . maybe r (m M.!)
 
@@ -202,6 +211,13 @@ instance Monoid Foo where
 simulate_ m nl =
   simInt nl . getFoo . fold <=<
   traverse mergeInput $ M.intersectionWith (,) m $ snlInputs nl
+
+simFull = simStuff <$> snlGates <*> snlUsed <*> snlOuts <*>
+          (IS.empty,) . IS.fromDistinctAscList . indices . snlGates
+-- assume everything might be wrong!
+-- Not guaranteed to finish, but neither is anything else.
+-- Finishing is guaranteed only when the circuit won't vibrate forever with
+-- constant input values.
 
 simStuff :: Array Int GateEval ->
             Array Int (IntSet, IntSet) ->

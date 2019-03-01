@@ -96,12 +96,14 @@ word8ToBools a = testBit a <$> [7, 6 .. 0]
 resetMap0 :: Map Text [Bool]
 resetMap1 :: Map Text [Bool]
 
-clockMapO :: Map Text [Bool]
-clockMapI :: Map Text [Bool]
-clockMap0 :: Map Text [Bool]
+clockMapO0 :: Map Text [Bool]
+clockMapI0 :: Map Text [Bool]
+clockMapO1 :: Map Text [Bool]
+clockMapI1 :: Map Text [Bool]
 
 futz n = do
   simulate_ resetMap0 n
+  simFull n
   simulate_ resetMap1 n
   return n
   
@@ -110,9 +112,10 @@ resetMap0 = M.fromDistinctAscList [("ci", [False]),
                                    ("reset", [False])]
 resetMap1 = M.singleton "reset" [True]
 
-clockMap0 = M.singleton "co" [False]
-clockMapO = M.fromDistinctAscList [("ci", [False]), ("co", [True])]
-clockMapI = M.singleton "ci" [True]
+clockMapO0 = M.singleton "co" [False]
+clockMapO1 = M.singleton "co" [True]
+clockMapI0 = M.singleton "ci" [False]
+clockMapI1 = M.singleton "ci" [True]
 
 createGB g =
   FullGB <$> newSTRef Nothing <*> (futz =<< simReadyNL g gbInternals) <*>
@@ -143,9 +146,10 @@ tickCPU gb is = do
   mCart <- readSTRef $ cart gb
   iRead <- handleRead results is mCart (vram gb) (wram gb)
   simulate_ iRead $ cpuInt gb
-  simulate_ clockMapI $ cpuInt gb
-  simulate_ clockMapO $ cpuInt gb
-  iWrite <- simulate clockMap0 $ cpuInt gb
+  simulate_ clockMapI1 $ cpuInt gb
+  simulate_ clockMapI0 $ cpuInt gb
+  simulate_ clockMapO1 $ cpuInt gb
+  iWrite <- simulate clockMapO0 $ cpuInt gb
   handleWrite iWrite mCart (vram gb) (wram gb) (voltageIn is)
     (channelVoltages gb) (screenPosn gb)
 

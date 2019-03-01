@@ -1,8 +1,9 @@
-{-# LANGUAGE MultiWayIf #-}
 module GB.Misc.Cartridge (Cartridge, CartridgeST, readCart, writeCart,
                           thawCart, freezeCart, readData, writeData,
                           isRumbling, tickClock, advanceClock,
                           isClockRunning) where
+
+-- There should be some way to savestate here.
 
 import Data.Array.IArray
 import Data.Array.Unboxed
@@ -54,7 +55,7 @@ data CartridgeST s = CartridgeST {
   }
 
 readCart :: ByteString -> ByteString -> Cartridge
-vwriteCart :: Cartridge -> ByteString -- writes only RAM and possibly clock
+writeCart :: Cartridge -> ByteString -- writes only RAM and possibly clock
 thawCart :: Cartridge -> ST s (CartridgeST s)
 freezeCart :: CartridgeST s -> ST s Cartridge
 readData :: CartridgeST s -> Word16 -> ST s Word8
