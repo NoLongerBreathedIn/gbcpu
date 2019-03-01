@@ -57,7 +57,7 @@ library
   -- other-modules:
 
   -- LANGUAGE extensions used by modules in this package.
-  other-extensions: DeriveAnyClass, DeriveFunctor, DeriveGeneric, FlexibleContexts, FlexibleInstances, ImplicitParams, LambdaCase, PatternSynonyms, TupleSections, TypeFamilies, ScopedTypeVariables, ExplicitForAll
+  other-extensions: DeriveAnyClass, DeriveFunctor, DeriveGeneric, FlexibleContexts, FlexibleInstances, ImplicitParams, LambdaCase, PatternSynonyms, TupleSections, TypeFamilies, ScopedTypeVariables, ExplicitForAll, MultiWayIf
 
   -- Other library packages from which modules are imported.
   build-depends: yaml >=0.11, text >=1.2, aeson >=1.4, base >=4.11 && <4.12, array >=0.5, deepseq >= 1.4, mtl >=2.2, data-reify >=0.6, transformers >=0.5, containers >=0.5, bytestring >=0.10
