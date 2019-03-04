@@ -49,7 +49,7 @@ data NetList = NetList { inputs :: [(Text, Int)],
                          nGate :: Int}
              deriving (Generic, NFData, Show)
 
-vtype SR = (Maybe Text, Int)
+type SR = (Maybe Text, Int)
 type NLP = (Either Text Int, Int)
 
 data Binop = BAnd | BOr | BXor | BImpl
@@ -186,9 +186,12 @@ detGates = fmap detGate . IM.fromList where
   detGate (And a b) = on GAnd foo a b
   detGate (Or a b) = on GOr foo a b
   detGate (Xor a b) = on GXor foo a b
+  detGate (Impl a b) = on GImpl foo a b
   detGate (Var n i) = Id (Just $ pack n, i)
   detGate (Dff w d) = (GDff False `on` foo) w d
-  detGate (DffZ w z d) = (GDffZ False False False `on3` foo) w z d
+  detGate (DffZ h w z d) = (GDffZ False False h `on3` foo) w z d
+  detGate (SRLatch True r s) = (GSR False False True `on` foo) s r
+  detGate (SRLatch False s r) = (GSR False False False `on` foo) s r
   detGate (Mux s d0 d1) = on3 MuxS foo s d0 d1
   detGate (Delay x) = GDelay $ foo x
   
@@ -247,7 +250,7 @@ showGateType (GNor _ _) = "norG"
 showGateType (GXor _ _) = "xorG"
 showGateType (GIff _ _) = "xnorG"
 showGateType (GImpl _ _) = "implG"
-  showGateType (GNimpl _ _) = "nimplG"
+showGateType (GNimpl _ _) = "nimplG"
 showGateType (MuxS _ _ _) = "mux2"
 showGateType (MuxNS _ _ _) = "muxnk"
 showGateType (MuxSN _ _ _) = "muxkn"

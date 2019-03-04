@@ -25,8 +25,8 @@ cpuShim edata irq iadd co ci rs (CPUOutputs pc ma mw wt ih is iserv) =
   c20 = fallingEdge s1
   c32 = fallingEdge s0
   st0 = s1 |!| s0
-  st1 = neg s1 &-& s0
-  st2 = s1 &-& neg s0
+  st1 = s0 &&! s1
+  st2 = s1 &&! s0
 
 shimmedCPU :: [Signal] -> Signal -> [Signal] -> Signal -> Signal -> Signal ->
               ([Signal], [Signal], Signal, Signal, Signal, Signal, Signal)

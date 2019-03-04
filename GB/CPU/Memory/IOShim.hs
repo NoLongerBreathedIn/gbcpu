@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns, RecordWildCards #-}
 module GB.CPU.Memory.IOShim (cpuIOShim, MemReq, memMultiplexer,
                              ioShimmedCPU,
                              IOReqs(..), IOResps(..)) where
@@ -5,11 +6,39 @@ module GB.CPU.Memory.IOShim (cpuIOShim, MemReq, memMultiplexer,
 import GB.Lava.Signal
 import GB.Util.Base
 import GB.CPU.CoreShim
+import Data.Foldable
 
 type MemReq = ([Signal], [Signal], Signal, Signal)
 
-data IOReqs = IOReqs
-data IOResps = IOResps
+data IOReqs = IOReqs {
+  sysco :: Signal,
+  sysci :: Signal,
+  oamReq :: MemReq, -- 8bit address
+  portReq :: MemReq, -- 3bit address
+  nrReq :: MemReq, -- 5bit address
+  waveReq :: MemReq, -- 4bit address from now on
+  lcdReq :: MemReq,
+  dmaReq :: MemReq,
+  cpalReq :: MemReq
+  }
+data IOResps = IOResps {
+  oamds :: [Signal],
+  portResp :: [Signal],
+  timerInt :: Signal,
+  serialInt :: Signal,
+  buttonInt :: Signal,
+  nrResp :: [Signal],
+  pcm01 :: [Signal],
+  pcm23 :: [Signal],
+  waveResp :: [Signal],
+  lcdResp :: [Signal],
+  lycInt :: Signal,
+  vblankInt :: Signal,
+  dmaResp :: [Signal],
+  inDMA :: Signal,
+  cpalResp :: [Signal],
+  iereg :: [Signal]
+  }
 
 memMultiplexer :: MemReq -> MemReq -> MemReq
 -- priority comes second
@@ -22,33 +51,80 @@ memMultiplexer (a0, d0, r0, w0) (a1, d1, r1, w1) = (a, d, r, w) where
   s = w1 |-| r1
 
 cpuIOShim :: Signal -> Signal -> Signal -> Signal -> Signal -> Signal ->
-             MemReq -> [Signal] -> [Signal] -> [Signal] -> IOResps ->
-             (IOReqs, MemReq, MemReq, MemReq, [Signal], Signal,
-              [Signal], Signal)
--- co ci fco fci rs isvc cpu_mem_request mem_response vram_response
+             Signal -> MemReq -> [Signal] -> [Signal] -> IOResps ->
+             (IOReqs, MemReq, MemReq, [Signal],  [Signal], Signal)
+-- co ci fco fci rs isvc inhalt cpu_mem_request mem_response
 -- himem_response io_responses
 -- returns:
 -- (io_requests, mem_request, vram_request, himem_request, cpu_mem_resp,
--- halt_cpu, ivec, irq)
--- mem_request has 16-bit address; vram has 13-bit address, himem has 7-bit
--- address
+-- ivec, irq)
+-- mem_request has 16-bit address; himem has 7-bit address
 
 ioShimmedCPU :: Signal -> Signal -> Signal -> Signal -> Signal ->
-                [Signal] -> [Signal] -> [Signal] -> IOResps ->
-                (IOReqs, MemReq, MemReq, MemReq, Signal)
+                [Signal] -> [Signal] -> IOResps ->
+                (IOReqs, MemReq, MemReq, Signal)
 
-ioShimmedCPU co ci fco fci rs ds mds hds resps = (reqs, dr, mdr, hdr, ins)
+ioShimmedCPU sco sci fco fci rs ds hds resps = (reqs, dr, hdr, ins)
   where
-    (reqs, dr, mdr, hdr, cds, hcpu, ivec, irq) =
-      cpuIOShim co ci fco fci rs isvc cdr ds mds hds resps
-    hcpu' = inh |!| hcpu
-    co' = co &-& hcpu'
-    ci' = ci &-& hcpu'
+    (reqs, dr, hdr, cds, ivec, irq) =
+      cpuIOShim sco sci fco fci rs isvc cdr ds hds resps
+    co' = sysco reqs
+    ci' = sysci reqs
     cdr = (abuf, dbuf, rd, wt)
     (abuf, dbuf, rd, wt, inh, ins, isvc) = shimmedCPU cds irq ivec co' ci' rs
 
-cpuIOShim = undefined
+cpuIOShim sco sci fco fci rs isvc inh cdr ds hds (IOResps {..}) =
+  (reqs, dr, hdr, cds, ivec, irq) where
+  reqs = IOReqs {..}
+  gbc = undefined -- we'll figure it out later
+  (ca, cd, cr, cw) = cdr
+  dr = (ca, cd, isNormal &-& cr, isNormal &-& cw)
+  hdr = (drop 9 ca, cd, isHRam &-& cr, isHRam &-& cw)
+  isQuiteHigh = ands $ take 7 ca
+  isNormal = neg isQuiteHigh
+  isVeryHigh = (ca !! 7) &-& isQuiteHigh
+  isOAM = isQuiteHigh &&! (ca !! 7)
+  isIO = isVeryHigh &&! (ca !! 8)
+  isHRam = isVeryHigh &-& (ca !! 8)
+  vhds = zipWith (mux2 $ ca !! 8) iods hds
+  qhds = zipWith (mux2 $ ca !! 7) oamds vhds
+  cds = zipWith (mux2 isNormal) ds qhds
+  noise = (ca !! 10) ^-^ (ca !! 11)
+  isSoundPort = isIO &&! (ca !! 9)
+  isWave = isSoundPort &-& (ca !! 10) &-& (ca !! 11)
+  isPortIF = isSoundPort &&! (ca !! 10) &&! (ca !! 11)
+  isPort = isPortIF &&! (ca !! 12)
+  isNR = isSoundPort &-& noise
+  oamReq = (drop 8 ca, cd, isOAM &-& cr, isOAM &-& cw)
+  nrReq = (drop 11 ca, cd, isNR &-& cr, isNR &-& cw)
+  waveReq = (drop 12 ca, cd, isWave &-& cr, isWave &-& cw)
+  portReq = (drop 13 ca, cd, isPort &-& cr, isPort &-& cw)
+  isHighIO = isIO &-& (ca !! 9)
+  isLCDDMA = isHighIO &&! (ca !! 10)
+  isPalMisc = isHighIO &-& (ca !! 10)
+  isCPal = isPalMisc &&! (ca !! 11)
+  isLCD = isLCDDMA &&! (ca !! 11)
+  isDMA = isLCDDMA &-& (ca !! 11)
+  lcdReq = (drop 12 ca, cd, isLCD &-& cr, isLCD &-& cw)
+  dmaReq = (drop 12 ca, cd, isDMA &-& cr, isDMA &-& cw)
+  cpalReq = (drop 12 ca, cd, isCPal &-& cr, isCPal &-& cw)
+  sysco = hcpu &-& sco
+  sysci = hcpu &-& sci
+  portd = zipWith (mux2 $ ca !! 12) portResp $
+    (ands (drop 13 ca) &-&) <$> replicate 3 low ++ ifreg
+  portwave = zipWith (mux2 $ ca !! 11) portd waveResp
+  loiod = zipWith (mux2 noise) portwave nrResp
+  lcdmad = zipWith (mux2 $ ca !! 11) lcdResp dmaResp
+  palmiscd = zipWith (mux2 $ ca !! 11) cpalResp miscOut
+  hiiod = zipWith (mux2 $ ca !! 10) lcdmad palmiscd
+  iods = zipWith (mux2 $ ca !! 9) loiod hiiod
+  ifreg = undefined -- determine later
+  miscOut = undefined -- determine later
+  (irq, ivec) = determineInterrupts $ zipWith (&-&) ifreg $ drop 3 iereg
+  hcpu = inh &&! irq |-| inDMA
 
+determineInterrupts :: [Signal] -> (Signal, [Signal])
+determineInterrupts = undefined -- work out later
 
 {-
 joypad buttons_out =

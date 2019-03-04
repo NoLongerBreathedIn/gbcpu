@@ -10,6 +10,7 @@ import GB.Util.Base (Signalish,
                      (&!&),
                      (^-^),
                      (^!^),
+                     (&&!),
                      neg,
                      fromBool,
                      huh,
@@ -37,6 +38,7 @@ instance Signalish (Symb a) where
   (|!|) = (&-&) `on` neg -- x |!| y <=> !x && !y
   (&!&) = (neg .) . (&-&) -- x &!& y <=> !(x && y)
   (^!^) = (^-^) . neg -- x <-> y <=> !x ^^ y
+  (&&!) = (. neg) . (&-&)
   mux2 m = (. (m &-&)) . (|-|) . (neg m &-&)
   fromBool = Inj
   neg Unknown = Unknown

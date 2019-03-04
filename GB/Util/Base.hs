@@ -20,6 +20,7 @@ class Signalish s where
   (|!|) :: s -> s -> s
   (^!^) :: s -> s -> s
   (!||) :: s -> s -> s
+  (&&!) :: s -> s -> s
   neg :: s -> s
   fromBool :: Bool -> s
   huh :: s
@@ -33,6 +34,7 @@ instance Signalish Bool where
   (|!|) = (&&) `on` not
   (^!^) = (==)
   (!||) = (||) . not
+  (&&!) = (. not) . (&&)
   neg = not
   fromBool = id
   huh = True
@@ -46,6 +48,7 @@ instance Signalish Signal where
   (|!|) = curry nor2
   (^!^) = curry xnor2
   (!||) = curry impl
+  (&&!) = curry nimpl
   neg = inv
   fromBool = bool
   huh = fromBool True
@@ -58,7 +61,8 @@ infix 7 &!&
 infix 5 |!|
 infix 6 ^!^
 infixr 4 !||
-
+infixl 7 &&!
+  
 xors :: (Signalish a) => [a] -> a
 ors :: (Signalish a) => [a] -> a
 xnors :: (Signalish a) => [a] -> a
@@ -133,8 +137,14 @@ registerz :: Signal -> Signal -> Signal -> Signal -> [Signal] -> [Signal]
 registerAWz :: Signal -> Signal -> Signal -> [Signal] -> [Signal]
 -- clocko clocki zero data
 
+registero :: Signal -> Signal -> Signal -> Signal -> [Signal] -> [Signal]
+registerAWo :: Signal -> Signal -> Signal -> [Signal] -> [Signal]
+
 registerz = (. (&-&)) . (.) . registerAWz
 registerAWz = ((map .) .) . (liftA2 (.) `on` dffZ)
+
+registero = (. (&-&)) . (.) . registerAWo
+registerAWo = ((map .) .) . (liftA2 (.) `on` dffO)
 
 register :: Signal -> Signal -> Signal -> [Signal] -> [Signal]
 registerAW :: Signal -> Signal -> [Signal] -> [Signal]
@@ -142,10 +152,10 @@ register = (. (&-&)) . (.) . registerAW
 registerAW = (map .) . (.) `on` dff
 
 fallingEdge :: Signal -> Signal
-fallingEdge = liftA2 (&-&) neg delay
+fallingEdge = (&&!) <*> delay
 
 risingEdge :: Signal -> Signal
-risingEdge = (&-&) <*> neg . delay
+risingEdge = flip (&&!) <*> delay
 
 fallingEdgeToTwoPhase :: Signal -> (Signal, Signal)
 fallingEdgeToTwoPhase = (delay . delay &&& id) . fallingEdge
