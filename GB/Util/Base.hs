@@ -113,6 +113,11 @@ muxb m (Left False) (Right x) = Right $ m &-& x
 muxb m (Right x) (Left True) = Right $ m |-| x
 muxb m l r = muxb (neg m) r l
 
+demux :: (Signalish a) => a -> [a] -> [a]
+demux = foldl' demux' . (:[])
+demux' :: (Signalish a) => [a] -> a -> [a]
+demux' = flip $ concatMap . \s -> \c -> [c &&! s, c &-& s]
+
 type SO a = Maybe (Either Bool a)
 ijSO :: Bool -> SO a
 ijSO = Just . Left

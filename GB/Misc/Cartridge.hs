@@ -153,7 +153,7 @@ readMBC1 rom ram sel x = do
   if testBit x 15
     then if ramEnabled bsi
          then readArray (ram ! selRam bsi) $ x .&. 0x1FFF
-         else return 0
+         else return 0xFF
     else return $
          let romB = if testBit x 14
                     then (if ramBankMode bsi
@@ -180,7 +180,7 @@ readMBC2 rom ram sel x = do
   if testBit x 15
     then if ramEnabled bsi
          then readArray (ram ! 0) $ x .&. 0x01FF
-         else return 0
+         else return 0xFF
     else return $
          let romB = if testBit x 14 then romBank bsi else 0 in
            (rom ! fromIntegral romB) ! (x .&. 0x3FFF)
@@ -213,7 +213,7 @@ readMBC3 ck ckR rom ram sel x = do
                       4 -> fromIntegral . (`shiftR` 8) . daysetc) <$>
                    readSTRef (if ramBankMode bsi then ckR else ck)
               else readArray (ram ! ramBank bsi) (x .&. 0x1FFF)
-         else return 0
+         else return 0xFF
     else return $
     (rom ! if testBit x 14 then fromIntegral $ romBank bsi else 0) !
     (x .&. 0x3FFF)
@@ -260,7 +260,7 @@ rMBC5 f = \rom ram sel x -> do
   if testBit x 15
     then if ramEnabled bsi
          then readArray (ram ! f (ramBank bsi)) $ x .&. 0x1FFF
-         else return 0
+         else return 0xFF
     else return $ let romB =
                         if testBit x 14
                         then (if (ramBankMode bsi) then (`setBit` 8) else id) $
