@@ -31,8 +31,8 @@ data IOResps = IOResps {
   serialInt :: Signal,
   buttonInt :: Signal,
   nrResp :: [Signal],
-  pcm01 :: [Signal],
-  pcm23 :: [Signal],
+  pcm12 :: [Signal],
+  pcm34 :: [Signal],
   waveResp :: [Signal],
   lcdResp :: [Signal],
   lcdcInt :: Signal,
@@ -155,7 +155,7 @@ determineInterrupts :: [Signal] -> (Signal, [Signal], [Signal])
 handleMiscOut :: (?gbtype :: GBType) => Signal -> Signal -> [Signal] ->
                  [Signal] -> Signal -> [Signal] -> [Signal] ->
                  ([Signal], [Signal])
--- co ci/w a[3] d[8] dmg pcm01[8] pcm23[8]
+-- co ci/w a[3] d[8] dmg pcm12[8] pcm34[8]
 -- returns (data[8], svbk[3])
 
 interruptReg :: Signal -> Signal -> Signal -> Signal ->
@@ -163,15 +163,15 @@ interruptReg :: Signal -> Signal -> Signal -> Signal ->
 -- clock out, clock in, write, activate reset, async set, reset, data
 -- reset happens only if activate was off last clock out and is now on.
 
-handleMiscOut co ci a d dmg pcm01 pcm23 = (dat, svbk) where
+handleMiscOut co ci a d dmg pcm12 pcm34 = (dat, svbk) where
   dat = mmux a [replicate 5 high ++ svbkf,
                 replicate 8 high,
                 unk2,
                 unk3,
                 unk4,
                 unk5,
-                pcm12,
-                pcm34]
+                foo pcm12,
+                foo pcm34]
   wts = demux ci a
   regs = (\w -> registerAW co w d) <$> demux ci a
   svbk = (&&! dmg) <$> drop 5 (regs !! 0)

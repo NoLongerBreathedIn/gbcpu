@@ -159,7 +159,7 @@ encodeJr =
       setEights = [lT,lF,nl,nl],
       aluR = [lT,lF,lF,nl],
       aluC = [lT,lT,nl, Just (Right $ ?m &-& ?l),
-              lT,lF, Just (Right $ ?c &-& ?l), x],
+              lT,lF, Just (Right $ ?l !|| ?c), x],
       fS = repeat lF,
       fR = repeat lT,
       fM = repeat lF,

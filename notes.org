@@ -878,7 +878,7 @@ y is o&p; z is !(o&p)
 | set 8s | jL     |
 | ALU    | Q      |
 | ALUl   | I      |
-| ALUc   | +kk0x  |
+| ALUc   | +kk1x  |
 | Fs     | 0000   |
 | Fr     | 1111   |
 | Fm     | 0000   |
@@ -1512,7 +1512,7 @@ Use 10xx
 *** CB l
 Use q|!(m|n|o|p) m|n|!(o|q)&p&fC q&!m|n m|n|o&(p^q)
 *** jr l
-Use 1 0 c&l x
+Use 1 0 c|!l x
 *** ldn16/j kl
 Use 10xx
 *** nop/STOP/HALT
