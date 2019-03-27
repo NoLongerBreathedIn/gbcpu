@@ -18,7 +18,7 @@ module GB.ROM.RomMake (GBasm, makeROM, label, move,
                        jr, jrl, jrc, jrlc, jp, jpc, jphl,
                        call, callc, ret, retc, reti,
                        rst, swop, rlc, rl, rrc, rr,
-                       sla, sra, srl, bat, set, res, byte, bytes,
+                       sla, sra, srl, bat, stb, rsb, byte, bytes,
                        regP1, regSB, regSC, regDIV, regTIMA, regTMA, regTAC,
                        regIF, regBIOS,
                        regAVOL, regAOUT, regAENA,
@@ -33,7 +33,7 @@ module GB.ROM.RomMake (GBasm, makeROM, label, move,
                        regBGPI, regBGPD, regOBPI, regOBPD,
                        regDMGEmu, regIODMGEmu, regUNK1,
                        regUNK2, regUNK3, regUNK4, regUNK5,
-                       regPCM12, regPCM34, lReg) where
+                       regPCM12, regPCM34, lReg, copyRegion) where
 
 import Data.Word
 import Data.Bits
@@ -56,22 +56,23 @@ pamf = flip $ fmap . flip id
 
 newtype GBasm a = GBasm {
   runGBasm :: forall s.
-    StateT Word16 (ReaderT (STRef s [(Word16, Word8)]) (ST s)) a }
+    StateT Word16
+    (ReaderT (STRef s [(Word16, Either Word8 Word16)]) (ST s)) a }
 
 makeROM :: Word16 -> Word16 -> GBasm a -> UArray Word16 Word8
 
 insoit :: (Ix i, MArray a e m, MArray b Bool m) =>
-          a i e -> b i Bool -> i -> e -> m ()
-v
-insoit a b i e =
-  readArray b i >>= flip unless (writeArray a i e >> writeArray b i True)
+          a i e -> b i Bool -> i -> (Either i e) -> m ()
+
+copyRegion :: Word16 -> Word16 -> GBasm ()
+
+insoit a i = either (readArray a >=> writeArray a i) (writeArray a i) 
 
 makeROM low high asm = runSTUArray $ do
   l <- newSTRef []
-v  runReaderT (evalStateT (runGBasm asm) low) l
+  runReaderT (evalStateT (runGBasm asm) low) l
   a <- newArray_ (low, high)
-  b <- newListArray (low, high) $ repeat False
-  traverse (uncurry $ insoit a b) =<< readSTRef l
+  traverse (uncurry $ insoit a) =<< reverse $ readSTRef l
   return a
 
 instance Functor GBasm where
@@ -117,7 +118,12 @@ move :: Word16 -> GBasm ()
 nq :: Word16 -> Word8 -> GBasm ()
 nq a d = do
   q <- GBasm ask
-  GBasm $ lift $ lift $ modifySTRef q ((a, d):)
+  GBasm $ lift $ lift $ modifySTRef q ((a, Right d):)
+
+nqc :: Word16 -> Word16 -> GBasm ()
+nqc a d = do
+  q <- GBasm ask
+  GBasm $ lift $ lift $ modifySTRef q ((a, Left d):)
 
 label = GBasm get
 move x = x `seq` GBasm $ put x
@@ -135,15 +141,18 @@ wyde w = do
   nq (l + 1) $ fromIntegral $ w `shiftR` 8
   move $ l + 2
 
+cpra :: Word16 -> Word16 -> Word16 -> GBasm ()
+cpra 0 _ t = return t
+cpra l f t = f `seq` t `seq` nqc t f >> cpra (l - 1) (f + 1) (t + 1)
+
+copyRegion s l = label >>= cpra l s >>= move
+
 bytes :: [Word8] -> GBasm ()
-bytes bs = do
-  l <- label
-  lf <- byaux l bs
-  move lf
+bytes bs = label >>= flip byaux bs >>= move
 
 byaux :: Word16 -> [Word8] -> GBasm Word16
 byaux l [] = return l
-byaux l (b:bs) = nq l b >> byaux (l + 1) bs
+byaux l (b:bs) = l `seq` nq l b >> byaux (l + 1) bs
 
 argb :: Word8 -> Word8 -> GBasm ()
 argb = (. byte) . (>>) . byte
@@ -255,8 +264,8 @@ sra :: GB8 -> GBasm ()
 swop :: GB8 -> GBasm ()
 srl :: GB8 -> GBasm ()
 bat :: Word8 -> GB8 -> GBasm ()
-res :: Word8 -> GB8 -> GBasm ()
-set :: Word8 -> GB8 -> GBasm ()
+rsb :: Word8 -> GB8 -> GBasm ()
+stb :: Word8 -> GB8 -> GBasm ()
 call :: Word16 -> GBasm ()
 adci :: Word8 -> GBasm ()
 subi :: Word8 -> GBasm ()
@@ -329,8 +338,8 @@ sra = opref 0x28 . n8
 swop = opref 0x30 . n8
 srl = opref 0x38 . n8
 bat = (. n8) . pref 1 . (.&. 7)
-res = (. n8) . pref 2 . (.&. 7)
-set = (. n8) . pref 3 . (.&. 7)
+rsb = (. n8) . pref 2 . (.&. 7)
+stb = (. n8) . pref 3 . (.&. 7)
 call = argw 0xCD
 adci = argb 0xCE
 subi = argb 0xD6
