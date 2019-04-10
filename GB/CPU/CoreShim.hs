@@ -16,7 +16,7 @@ cpuShim :: [Signal] -> Signal -> [Signal] -> Signal -> Signal -> Signal ->
 
 cpuShim edata irq iadd co ci rs (CPUOutputs pc ma mw wt ih is iserv) =
   ((CPUInputs ibuf dbuf irq iadd, (c20, c32, rs)),
-    (abus, dbus, neg s0, st2 &-& wt, ih, is, iserv)) where
+    (abus, dbus, neg s0, st3 &-& wt, ih, is, iserv)) where
   ibuf = dff st0 <$> edata
   dbuf = dff st1 <$> edata
   dbus = mw
@@ -24,9 +24,9 @@ cpuShim edata irq iadd co ci rs (CPUOutputs pc ma mw wt ih is iserv) =
   [s1, s0] = registerAWz co ci rs [s0, neg s1]
   c20 = fallingEdge s1
   c32 = fallingEdge s0
-  st0 = s1 |!| s0
+  st0 = s0 |!| s1
   st1 = s0 &&! s1
-  st2 = s1 &&! s0
+  st3 = s0 &-& s1
 
 shimmedCPU :: [Signal] -> Signal -> [Signal] -> Signal -> Signal -> Signal ->
               ([Signal], [Signal], Signal, Signal, Signal, Signal, Signal)
