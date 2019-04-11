@@ -16,7 +16,7 @@ cpuShim :: [Signal] -> Signal -> [Signal] -> Signal -> Signal -> Signal ->
 
 cpuShim edata irq iadd co ci rs (CPUOutputs pc ma mw wt ih is iserv) =
   ((CPUInputs ibuf dbuf irq iadd, (c20, c32, rs)),
-    (abus, dbus, neg s0, st3 &-& wt, ih, is, iserv)) where
+    (abus, dbus, neg s0, delay st3 &-& wt, ih, is, iserv)) where
   ibuf = dff st0 <$> edata
   dbuf = dff st1 <$> edata
   dbus = mw

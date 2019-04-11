@@ -239,7 +239,7 @@ mergeInput' fs os = \(i, n) -> do
 simStuff g u r = simA where
   simA (si, sl) = if IS.null si
                   then if IS.null sl then return ()
-                       else simA $ simB sl
+                       else simA =<< simB sl
                   else do
     let (i, si') = IS.deleteFindMin si
     cur <- readArray r i
@@ -248,15 +248,18 @@ simStuff g u r = simA where
       writeArray r i nex
       let (sie, sle) = u ! i
       sl `seq` simA (si' <> sie, sl <> sle)
-  simB = IS.foldr' simC $ return (IS.empty, IS.empty)
---  simC :: Int -> ST s (IntSet, IntSet) -> ST s (IntSet, IntSet)
-  simC i ss = do
+  simB = do
+    (a, act) <- IS.foldr' simC $ return ((IS.empty, IS.empty), return ())
+    act
+    return a
+    --  simC :: Int -> ST s ((IntSet, IntSet), ST s ()) ->
+    --          ST s ((IntSet, IntSet), ST s ())
+  simC x i ss = do
     cur <- readArray r i
     nex <- (g ! i) cur
     if cur == nex then ss else do
-      writeArray r i nex
       let (sie, sle) = u ! i
-      force . ((sie <>) *** (sle <>)) <$> ss
+      force . (((sie <>) *** (sle <>)) *** (writeArray r i nex >>)) <$> ss
 
 -- Algorithm: Mantain lists of current, next.
 -- While current nonempty, take an element from it and update that;
