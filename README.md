@@ -6,6 +6,7 @@ The CPU is a Sharp LR35902. Not knowing the internals,
 I decided to write my own microcode implementation.
 
 The microinstruction consists of several fields:
+
 | Field | Length | Purpose |
 |--------|--------|---------------------------------------------------|
 | `8w` | 4 | Select 8-bit register to write |
@@ -50,6 +51,7 @@ as is a seven-bit state it keeps.
 
 ## `8w`
 This selects the register to write the output of the ALU to, as follows:
+
 | Value | Register |
 |-------|----------|
 | 0 | `B` |
@@ -71,6 +73,7 @@ This selects the register to write the output of the ALU to, as follows:
 
 ## `ALUc`
 The first two bits are general ALU control.
+
 | Value | Operation |
 |-------|-----------|
 | 0 | XOR |
@@ -79,6 +82,7 @@ The first two bits are general ALU control.
 | 3 | ADD |
 
 If the ALU general control is Misc, the following operations are performed:
+
 | Match | Operation |
 |-|-|
 | `****00` | Shift left (output first bit as carry, return bits 1-8) |
@@ -102,6 +106,7 @@ If `co` is on and the operation is AND, then the output is complemented.
 
 ## `ALUl`
 This selects the left operand.
+
 | Value | Operand |
 |-|-|
 | 0 | `A` |
@@ -111,6 +116,7 @@ This selects the left operand.
 
 ## `ALUr`
 This selects the right operand.
+
 | Value | Operand |
 |-------|---------|
 | 0 | `B` |
@@ -141,6 +147,7 @@ Then `F` is ored with `MR` if the bit of `Fm` corresponding to the
 subtract flag is set.
 
 ## `HL`, `SP`
+
 | Value | Operation |
 |-|-|
 | 0 | Leave alone |
@@ -163,6 +170,7 @@ New values written to these are ignored until next cycle.
 
 ## `b16`
 This selects the source of the 16-bit bus.
+
 | Value | Source |
 |-|-|
 | 0 | `BC` |
@@ -172,6 +180,7 @@ This selects the source of the 16-bit bus.
 
 ## `ID`
 This selects the source of the 16-bit incrementor.
+
 | Value | Source |
 |-|-|
 | 0 | `IP` |
