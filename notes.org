@@ -1863,6 +1863,28 @@ clock CPU I
 stage 2:
 at 2-0:
 clock CPU O
+
+
+stage 0:
+ADD <- IP
+read <- 1
+at a/b: I <- DAT
+
+stage 1:
+ADD <- MA
+read <- 1
+at a/b: MR <- DAT
+
+stage 3:
+DAT <- MW
+write <- wt
+ADD <- MA
+at a/b: clock CPU I
+
+stage 2:
+at a/b: clock CPU O
+
+
 * DMA
 Read write read write.
 * HDMA
