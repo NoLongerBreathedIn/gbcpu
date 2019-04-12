@@ -44,7 +44,8 @@ There are also three pseudoregisters (read-only):
 
 It is possible to simultaneously perform an 8-bit write to part of a 16-bit
 register and a 16-bit write to the entire register.
-Should this happen, the 16-bit write is performed first.
+Should this happen, the 16-bit write is (logically) performed first
+(all writes happen simultaneously).
 
 The registers `I`, `F`, and `c` are available to the instruction decoder,
 as is a seven-bit state it keeps.
@@ -139,12 +140,15 @@ This selects the right operand.
 Note that `F` appears twice. This is used to simplify logic.
 
 ## `Fs`, `Fr`, `Fm`
-Every cycle, each flag in F
-is set to the ALU's output if the corresponding bit of `Fm` is set,
-then cleared if the corresponding bit of `Fr` is not set,
-then set if the corresponding bit of `Fs` is set.
-Then `F` is ored with `MR` if the bit of `Fm` corresponding to the
-subtract flag is set.
+Every cycle, each flag in `F`
+is set to the ALU's output if the corresponding bit of `Fm` is on,
+then cleared if the corresponding bit of `Fr` is off,
+then set if the corresponding bit of `Fs` is on.
+Then the bits in `F` that are on in `MR` are set
+if the bit of `Fm` corresponding to the
+subtract flag is on.
+
+These operations are performed simultaneously, but in this logical order.
 
 ## `HL`, `SP`
 
